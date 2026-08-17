@@ -1,0 +1,35 @@
+# Dépendances
+node_modules/
+
+# Expo / builds
+.expo/
+dist/
+web-build/
+ios/
+android/
+
+# Secrets / certificats
+.env
+.env.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Supabase CLI
+supabase/.temp/
+
+# Configs IDE (personnelles)
+.claude/
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.*
+yarn-*.log

@@ -1,0 +1,12 @@
+{
+  "name": "laps-library",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "^57.0.12"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.4",
+    "typescript": "~6.0.3"
+  }
+}
