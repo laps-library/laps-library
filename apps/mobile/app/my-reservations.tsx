@@ -25,7 +25,7 @@ export default function MyReservations() {
         .select('id, reservation_date, start_time, price_cents, status, workstations(name), time_slots(name), instrument_models(name)')
         .eq('user_id', uid)
         .order('reservation_date');
-      setList((data as Res[]) ?? []);
+      setList((data as unknown as Res[]) ?? []);
     }
     load();
   }, []);

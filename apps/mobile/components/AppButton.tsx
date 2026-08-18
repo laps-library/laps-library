@@ -7,9 +7,10 @@ type Props = {
   active?: boolean;
   fontSize?: number;
   accent?: boolean;
+  color?: string;
 };
 
-export default function AppButton({ label, onPress, active = false, fontSize = 16, accent = false }: Props) {
+export default function AppButton({ label, onPress, active = false, fontSize = 16, accent = false, color }: Props) {
   return (
     <Pressable
       onPress={onPress}
@@ -22,6 +23,7 @@ export default function AppButton({ label, onPress, active = false, fontSize = 1
           style={[
             styles.label,
             { fontSize },
+            color ? { color } : null,
             active && styles.labelActive,
             !active && pressed && styles.labelPressed,
             accent && styles.labelAccent,

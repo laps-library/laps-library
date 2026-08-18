@@ -4,7 +4,7 @@ export const W = Dimensions.get('window').width;
 export const H = Dimensions.get('window').height;
 
 export const HOME_GIF = require('../assets/home.gif');
-export const LOGO_GIF = require('../assets/logo.gif');
+export const LOGO_GIF = require('../assets/logo-anim.gif');
 
 const _hi = Image.resolveAssetSource(HOME_GIF);
 const _li = Image.resolveAssetSource(LOGO_GIF);

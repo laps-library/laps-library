@@ -135,7 +135,7 @@ export default function BounceOverlay() {
       try {
         const { width, height } = Dimensions.get('window');
         const now = Date.now();
-        const obstacles = Array.from(S.obstacleMap.values());
+        const obstacles = Array.from(S.obstacleMap.values()) as Rect[];
 
         let next = ballsRef.current
           .filter((b) => now - b.born < BALL_LIFE)
@@ -253,10 +253,12 @@ const styles = StyleSheet.create({
     width: BALL_SIZE,
     height: BALL_SIZE,
     borderRadius: BALL_SIZE / 2,
-    backgroundColor: '#ff2bd6',
-    shadowColor: '#ff2bd6',
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
+    backgroundColor: '#000000',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#ffffff',
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
     elevation: 6,
   },
 });

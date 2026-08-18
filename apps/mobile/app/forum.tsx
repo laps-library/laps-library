@@ -13,7 +13,7 @@ export default function ForumScreen() {
   async function load() {
     const { data } = await supabase
       .from('forum_threads')
-      .select('id, title, created_at, profiles(first_name, last_name), forum_posts(id)')
+      .select('id, title, created_at, profiles(pseudo, first_name, last_name), forum_posts(id)')
       .order('created_at', { ascending: false });
     setThreads(data ?? []);
   }
@@ -36,7 +36,7 @@ export default function ForumScreen() {
           <TouchableOpacity key={t.id} style={styles.card} onPress={() => router.push(`/forum-thread/${t.id}`)}>
             <Text style={styles.name}>{t.title}</Text>
             <Text style={styles.meta}>
-              {t.profiles?.first_name} · {new Date(t.created_at).toLocaleDateString('fr-FR')} · {t.forum_posts?.length ?? 0} réponse(s)
+              {t.profiles?.pseudo || t.profiles?.first_name || 'Membre'} · {new Date(t.created_at).toLocaleDateString('fr-FR')} · {t.forum_posts?.length ?? 0} réponse(s)
             </Text>
           </TouchableOpacity>
         ))}

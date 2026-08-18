@@ -17,7 +17,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { LOCAL_PHOTOS } from '../assets/instruments/manifest';
 
-const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView);
+const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView) as any;
 import BackButton from '../components/BackButton';
 import { supabase } from '../lib/supabase';
 
@@ -149,7 +149,7 @@ function InfiniteCoverflow({
   renderCard: (item: Row, shouldLoadImage: boolean) => React.ReactNode;
   verticalScrollRef: React.RefObject<any>;
 }) {
-  const scrollRef = useRef<Animated.ScrollView>(null);
+  const scrollRef = useRef<any>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const canLoop = items.length > 1;
   const loopedItems = canLoop ? [...items, ...items, ...items] : items;

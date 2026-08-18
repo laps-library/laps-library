@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
@@ -15,6 +15,7 @@ async function doLogout() {
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
+  const [pseudo, setPseudo] = useState('');
   const [plan, setPlan] = useState<any>(null);
   const [reservations, setReservations] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
@@ -25,6 +26,7 @@ export default function ProfileScreen() {
     const uid = sess.session?.user.id;
     const { data } = await supabase.from('profiles').select('*').eq('id', uid).single();
     setProfile(data);
+    setPseudo(data?.pseudo ?? '');
     if (data?.plan_id) {
       const { data: pl } = await supabase.from('plans').select('*').eq('id', data.plan_id).single();
       setPlan(pl);
@@ -46,6 +48,28 @@ export default function ProfileScreen() {
   }
 
   useEffect(() => { load(); }, []);
+
+  async function savePseudo() {
+    const value = pseudo.trim();
+    if (value && (value.length < 2 || value.length > 30)) {
+      Alert.alert('Pseudo invalide', 'Le pseudo doit faire entre 2 et 30 caractères.');
+      return;
+    }
+    const { error } = await supabase
+      .from('profiles')
+      .update({ pseudo: value || null })
+      .eq('id', profile.id);
+    if (error) {
+      if (/duplicate|unique/i.test(error.message)) {
+        Alert.alert('Pseudo déjà pris', 'Ce pseudo est déjà utilisé. Choisis-en un autre.');
+      } else {
+        Alert.alert('Erreur', error.message);
+      }
+      return;
+    }
+    Alert.alert('Enregistré', 'Ton pseudo public a été mis à jour.');
+    load();
+  }
 
   async function pickDocument() {
     const res = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'], copyToCacheDirectory: true });
@@ -161,6 +185,20 @@ export default function ProfileScreen() {
           <Text style={styles.label}>_Téléphone</Text>
           <Text style={styles.value}>{profile.phone || '-'}</Text>
 
+          <Text style={styles.section}>_Pseudo public</Text>
+          <Text style={styles.label}>_Affiché sur le forum</Text>
+          <TextInput
+            style={styles.input}
+            value={pseudo}
+            onChangeText={setPseudo}
+            placeholder="Choisis un pseudo public"
+            placeholderTextColor="#8e8e93"
+            maxLength={30}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <AppButton label="Enregistrer mon pseudo" onPress={savePseudo} />
+
           <Text style={styles.section}>_Mes réservations</Text>
           {reservations.length === 0 && <Text style={styles.empty}>Aucune réservation à venir.</Text>}
           {reservations.map((r) => (
@@ -202,6 +240,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  input: { borderWidth: 1, borderColor: '#fff', borderRadius: 10, padding: 14, color: '#fff', backgroundColor: '#000' },
   container: { flex: 1, backgroundColor: '#000' },
   scroll: { padding: 24, gap: 12 },
   title: { fontWeight: 'bold', fontStyle: 'italic', textTransform: 'uppercase', fontSize: 28, color: '#fff', letterSpacing: 1, textAlign: 'center' },

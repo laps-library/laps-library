@@ -18,7 +18,7 @@ export default function ForumThreadScreen() {
     setThread(t);
     const { data: p } = await supabase
       .from('forum_posts')
-      .select('*, profiles!forum_posts_created_by_fkey(first_name, last_name)')
+      .select('*, profiles!forum_posts_created_by_fkey(pseudo, first_name, last_name)')
       .eq('thread_id', id)
       .order('created_at');
     setPosts(p ?? []);
@@ -49,7 +49,7 @@ export default function ForumThreadScreen() {
 
         {posts.map((p) => (
           <View key={p.id} style={styles.card}>
-            <Text style={styles.meta}>{p.profiles?.first_name ?? 'Membre'} · {new Date(p.created_at).toLocaleDateString('fr-FR')}</Text>
+            <Text style={styles.meta}>{p.profiles?.pseudo || p.profiles?.first_name || 'Membre'} · {new Date(p.created_at).toLocaleDateString('fr-FR')}</Text>
             <Text style={styles.body}>{p.body || p.content}</Text>
           </View>
         ))}

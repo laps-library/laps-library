@@ -19,7 +19,7 @@ export default function AdminNewsScreen() {
       quality: 0.5,
       maxWidth: 1200,
       maxHeight: 1200,
-    });
+    } as any);
     if (res.canceled || !res.assets?.length) return;
     setBusy(true);
     try {

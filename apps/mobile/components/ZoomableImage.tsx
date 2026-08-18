@@ -13,7 +13,7 @@ export default function ZoomableImage({ source, visible, onClose }: { source: an
   const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
   const responder = PanResponder.create({
-    onMoveShouldBePanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (evt) => {
       const t = evt.nativeEvent.touches;
       base.current = { scale, x: pos.x, y: pos.y, d: t.length === 2 ? Math.hypot(t[0].pageX - t[1].pageX, t[0].pageY - t[1].pageY) : 0 };
