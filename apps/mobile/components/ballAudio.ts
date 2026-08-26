@@ -133,9 +133,9 @@ async function play(i: number, wave: Wave, volume: number) {
 }
 
 export function playSpawnNote(i: number) {
-  play(i, 'sine', 0.25);
+  play(i, 'sine', 0.7);
 }
 
 export function playBounceNote(i: number) {
-  play(i, 'morph', 0.12);
+  play(i, 'morph', 0.5);
 }

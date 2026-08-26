@@ -27,7 +27,7 @@ function randomIndex(except: number) {
 let sound: Audio.Sound | null = null;
 let isPlaying = false;
 let currentIndex = 0;
-let volume = 0.3;
+let volume = 0.7;
 let busy = false;
 const history: number[] = [];
 const listeners = new Set<(st: { playing: boolean; index: number; volume: number }) => void>();
