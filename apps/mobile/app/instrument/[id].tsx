@@ -142,11 +142,28 @@ export default function InstrumentDetailScreen() {
       return;
     }
 
+    // 1. Trouver une unité physique disponible du modèle demandé
+    const { data: unit, error: unitErr } = await supabase
+      .from('physical_units')
+      .select('id')
+      .eq('instrument_model_id', id)
+      .eq('is_borrowable', true)
+      .eq('status', 'available')
+      .limit(1)
+      .maybeSingle();
+
+    if (unitErr || !unit) {
+      setMsg("Aucune unité disponible pour cet instrument.");
+      return;
+    }
+
+    // 2. Créer le prêt avec l'unité physique
     const { error } = await supabase
       .from('loans')
       .insert({
         user_id: profile.id,
-        instrument_model_id: id,
+        physical_unit_id: unit.id,
+        status: 'requested',
       });
 
     if (error) {

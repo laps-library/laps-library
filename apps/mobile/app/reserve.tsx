@@ -855,6 +855,22 @@ export default function ReserveScreen() {
   }
 
   async function confirmLoan() {
+    // 1. Trouver une unité physique disponible du modèle demandé
+    const { data: unit, error: unitErr } = await supabase
+      .from('physical_units')
+      .select('id')
+      .eq('instrument_model_id', instrId)
+      .eq('is_borrowable', true)
+      .eq('status', 'available')
+      .limit(1)
+      .maybeSingle();
+
+    if (unitErr || !unit) {
+      setMsg("Aucune unité disponible pour cet instrument.");
+      return;
+    }
+
+    // 2. Créer le prêt avec l'unité physique
     const {
       data,
       error,
@@ -862,8 +878,8 @@ export default function ReserveScreen() {
       .from('loans')
       .insert({
         user_id: userId,
-        instrument_model_id:
-          instrId,
+        physical_unit_id:
+          unit.id,
         start_date:
           weekStart,
         duration_weeks:
