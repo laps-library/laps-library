@@ -871,6 +871,9 @@ export default function ReserveScreen() {
     }
 
     // 2. Créer le prêt avec l'unité physique
+    const now = new Date().toISOString();
+    const dueAt = new Date(Date.now() + (weeks || 1) * 7 * 24 * 60 * 60 * 1000).toISOString();
+
     const {
       data,
       error,
@@ -889,7 +892,10 @@ export default function ReserveScreen() {
         amount_cents:
           loanPrice,
         status:
-          'requested',
+          'active',
+        started_at: now,
+        due_at: dueAt,
+        fee_cents: 0,
       })
       .select()
       .single();

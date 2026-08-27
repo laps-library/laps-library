@@ -22,7 +22,7 @@ export default function IndexScreen() {
         await s.playAsync();
       } catch (e) {}
 
-      await new Promise((r) => setTimeout(r, 4500));
+      await new Promise((r) => setTimeout(r, 4080));
 
       try { if (sound) await sound.unloadAsync(); } catch (e) {}
 

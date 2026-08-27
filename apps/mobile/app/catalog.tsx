@@ -109,9 +109,9 @@ type Row = {
 };
 
 const TABS = [
-  { key: 'libre_service', label: 'LIBRE SERVICE' },
-  { key: 'premium', label: 'PREMIUM' },
   { key: 'empruntable', label: 'EMPRUNTABLE' },
+  { key: 'premium', label: 'PREMIUM' },
+  { key: 'libre_service', label: 'LIBRE SERVICE' },
 ];
 
 const TYPES = [
@@ -257,7 +257,7 @@ function InfiniteCoverflow({
 export default function CatalogScreen() {
   const verticalScrollRef = useRef<any>(null);
   const [rows, setRows] = useState<Row[]>([]);
-  const [tab, setTab] = useState('libre_service');
+  const [tab, setTab] = useState('empruntable');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [typeOpen, setTypeOpen] = useState(false);
   const [showComing, setShowComing] = useState(false);

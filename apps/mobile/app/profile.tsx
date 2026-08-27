@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../lib/supabase';
 import AppButton from '../components/AppButton';
 import BackButton from '../components/BackButton';
+import * as ExpoLinking from 'expo-linking';
 import { configureBallMusic, noteName, SCALE_NAMES } from '../components/ballAudio';
 
 async function doLogout() {
@@ -20,6 +21,8 @@ export default function ProfileScreen() {
   const [reservations, setReservations] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loanPayments, setLoanPayments] = useState<Record<string, string>>({});
 
   async function load() {
     const { data: sess } = await supabase.auth.getSession();
@@ -40,14 +43,81 @@ export default function ProfileScreen() {
     setReservations(res ?? []);
     const { data: ln } = await supabase
       .from('loans')
-      .select('id, status, duration_weeks, instrument_models(name)')
+      .select('id, status, payment_status, duration_weeks, start_date, physical_units(instrument_models(name))')
       .eq('user_id', uid)
       .neq('status', 'returned')
+      .or('payment_status.eq.paid,status.eq.requested')
       .limit(5);
     setLoans(ln ?? []);
+
+    const { data: notifs } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    setNotifications(notifs ?? []);
+
+    // Charger les statuts de paiement des prêts mentionnés dans les notifications
+    const loanIds = (notifs ?? [])
+      .filter(n => n.type === 'loan_approved' && n.data?.loan_id)
+      .map(n => n.data.loan_id);
+    
+    if (loanIds.length > 0) {
+      const { data: loanData } = await supabase
+        .from('loans')
+        .select('id, payment_status')
+        .in('id', loanIds);
+      
+      const payments: Record<string, string> = {};
+      (loanData ?? []).forEach(l => {
+        payments[l.id] = l.payment_status || 'unpaid';
+      });
+      setLoanPayments(payments);
+    }
   }
 
   useEffect(() => { load(); }, []);
+
+  async function markAsRead(id: string) {
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    setNotifications(notifs =>
+      notifs.map(n => n.id === id ? { ...n, is_read: true } : n)
+    );
+  }
+
+  async function payLoan(loanId: string) {
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user.id;
+    const redirectUrl = ExpoLinking.createURL('payment-success');
+
+    const { data, error } = await supabase.functions.invoke('create_payment', {
+      body: {
+        user_id: uid,
+        amount_cents: 1000,
+        label: 'Emprunt instrument',
+        kind: 'loan',
+        loan_id: loanId,
+        redirect_url: redirectUrl,
+      },
+    });
+
+    if (error || !(data as any)?.url) {
+      Alert.alert('Erreur', 'Impossible de lancer le paiement.');
+      return;
+    }
+
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    await AsyncStorage.setItem('laps_pending_payment', 'loan');
+    Linking.openURL((data as any).url);
+  }
+
+  async function markAllAsRead() {
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user.id;
+    await supabase.from('notifications').update({ is_read: true }).eq('user_id', uid);
+    setNotifications(notifs => notifs.map(n => ({ ...n, is_read: true })));
+  }
 
   async function savePseudo() {
     const value = pseudo.trim();
@@ -199,6 +269,89 @@ export default function ProfileScreen() {
           />
           <AppButton label="Enregistrer mon pseudo" onPress={savePseudo} />
 
+          <Text style={styles.section}>_Notifications ({notifications.filter(n => !n.is_read).length})</Text>
+          {notifications.length === 0 ? (
+            <Text style={styles.empty}>Aucune notification.</Text>
+          ) : (
+            <View>
+              {notifications.filter(n => !n.is_read).length > 0 && (
+                <TouchableOpacity onPress={markAllAsRead} style={{ marginBottom: 8, alignSelf: 'flex-end' }}>
+                  <Text style={{ color: '#ff2bd6', fontSize: 12, fontStyle: 'italic' }}>
+                    Tout marquer comme lu
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {notifications.map((n) => (
+                <TouchableOpacity
+                  key={n.id}
+                  onPress={() => markAsRead(n.id)}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: n.is_read ? '#333' : '#ff2bd6',
+                    borderRadius: 8,
+                    padding: 12,
+                    marginBottom: 8,
+                    backgroundColor: n.is_read ? 'rgba(255,255,255,0.02)' : 'rgba(255,43,214,0.08)',
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13, fontStyle: 'italic', flex: 1 }}>
+                      {n.title}
+                    </Text>
+                    {!n.is_read && (
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ff2bd6', marginLeft: 8 }} />
+                    )}
+                  </View>
+                  <Text style={{ color: '#ccc', fontSize: 12, marginBottom: 4 }}>
+                    {n.message}
+                  </Text>
+                  {n.type === 'loan_approved' && n.data?.loan_id && !n.is_read && (
+                    loanPayments[n.data.loan_id] === 'paid' ? (
+                      <View style={{
+                        backgroundColor: 'rgba(76, 217, 100, 0.1)',
+                        borderColor: '#4cd964',
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingVertical: 10,
+                        paddingHorizontal: 16,
+                        marginTop: 8,
+                        alignItems: 'center',
+                      }}>
+                        <Text style={{ color: '#4cd964', fontWeight: '700', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>
+                          ✅ Emprunt confirmé et payé
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => payLoan(n.data.loan_id)}
+                        style={{
+                          backgroundColor: '#ff2bd6',
+                          borderRadius: 8,
+                          paddingVertical: 10,
+                          paddingHorizontal: 16,
+                          marginTop: 8,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>
+                          Confirmer et payer (10 EUR)
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  )}
+                  <Text style={{ color: '#666', fontSize: 10, fontStyle: 'italic', marginTop: 4 }}>
+                    {new Date(n.created_at).toLocaleDateString('fr-FR', { 
+                      day: 'numeric', 
+                      month: 'short', 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           <Text style={styles.section}>_Mes réservations</Text>
           {reservations.length === 0 && <Text style={styles.empty}>Aucune réservation à venir.</Text>}
           {reservations.map((r) => (
@@ -210,11 +363,21 @@ export default function ProfileScreen() {
 
           <Text style={styles.section}>_Mes emprunts</Text>
           {loans.length === 0 && <Text style={styles.empty}>Aucun emprunt en cours.</Text>}
-          {loans.map((l) => (
-            <Text key={l.id} style={styles.line}>
-              _ {l.instrument_models?.name} · {l.duration_weeks ? `${l.duration_weeks} sem · ` : ''}{l.status}
-            </Text>
-          ))}
+          {loans.map((l) => {
+            let statusText = l.status;
+            if (l.status === 'requested') {
+              statusText = 'En attente';
+            } else if (l.status === 'active') {
+              const start = l.start_date ? new Date(l.start_date) : null;
+              const now = new Date();
+              statusText = start && start > now ? 'À venir' : 'En cours';
+            }
+            return (
+              <Text key={l.id} style={styles.line}>
+                _ {l.physical_units?.instrument_models?.name || 'Instrument'} · {l.start_date ? new Date(l.start_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' · ' : ''}{statusText}
+              </Text>
+            );
+          })}
           <AppButton label="Gérer mes emprunts" fontSize={10} onPress={() => router.push('/my-loans')} />
         </View>
 
@@ -240,6 +403,29 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  notifCard: {
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  notifTitle: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+    flex: 1,
+  },
+  notifMessage: {
+    color: '#ccc',
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  notifDate: {
+    color: '#888',
+    fontSize: 11,
+  },
   input: { borderWidth: 1, borderColor: '#fff', borderRadius: 10, padding: 14, color: '#fff', backgroundColor: '#000' },
   container: { flex: 1, backgroundColor: '#000' },
   scroll: { padding: 24, gap: 12 },

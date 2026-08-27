@@ -19,6 +19,7 @@ type Ball = {
   note: number;
   lastSound: number;
   bounced?: boolean;
+  collided?: boolean;
   squash: number;
   squashAxis: 'x' | 'y';
   squashTime: number;
@@ -197,6 +198,7 @@ export default function BounceOverlay() {
               const axis: 'x' | 'y' = Math.abs(nx) > Math.abs(ny) ? 'x' : 'y';
               a.squash = 1; a.squashAxis = axis; a.squashTime = now;
               b.squash = 1; b.squashAxis = axis; b.squashTime = now;
+              a.collided = true; b.collided = true;
             }
           }
         }
@@ -214,7 +216,11 @@ export default function BounceOverlay() {
             ball.lastSound = now;
             playBounceNote(ball.note);
           }
-          return { ...ball, scaleX, scaleY, bounced: false };
+          if (ball.collided && now - ball.lastSound > 250) {
+            ball.lastSound = now;
+            playBounceNote(ball.note);
+          }
+          return { ...ball, scaleX, scaleY, bounced: false, collided: false };
         });
 
         ballsRef.current = next;

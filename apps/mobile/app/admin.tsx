@@ -33,8 +33,8 @@ export default function AdminScreen() {
 
     const { data: ln } = await supabase
       .from('loans')
-      .select('*, profiles(first_name, last_name), instrument_models(name)')
-      .in('status', ['requested', 'ongoing'])
+      .select('*, profiles!user_id(first_name, last_name), physical_units(instrument_models(name), serial_number)')
+      .in('status', ['requested', 'active'])
       .order('created_at', { ascending: false });
     setLoans(ln ?? []);
   }
@@ -68,13 +68,102 @@ export default function AdminScreen() {
   }
 
   async function startLoan(id: string) {
-    const due = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
-    await supabase.from('loans').update({ status: 'ongoing', started_at: new Date().toISOString(), due_at: due }).eq('id', id);
+    // 1. Récupérer le prêt avec les infos utilisateur et unité
+    const { data: loan } = await supabase
+      .from('loans')
+      .select('*, physical_units(instrument_model_id)')
+      .eq('id', id)
+      .single();
+
+    if (!loan) return;
+
+    // 2. Calculer due_at basé sur start_date + 7 jours
+    const startDate = loan.start_date ? new Date(loan.start_date) : new Date();
+    const dueAt = new Date(startDate);
+    dueAt.setDate(dueAt.getDate() + 7);
+
+    // 3. Mettre à jour le prêt
+    await supabase.from('loans').update({
+      status: 'active',
+      payment_status: 'unpaid',
+      started_at: startDate.toISOString(),
+      due_at: dueAt.toISOString(),
+    }).eq('id', id);
+
+    // 4. Marquer l'unité comme empruntée
+    if (loan.physical_unit_id) {
+      await supabase.from('physical_units').update({
+        status: 'borrowed',
+      }).eq('id', loan.physical_unit_id);
+    }
+
+    // 5. Envoyer une notification à l'utilisateur
+    await supabase.from('notifications').insert({
+      user_id: loan.user_id,
+      type: 'loan_approved',
+      title: "Votre emprunt a été validé !",
+      message: `Votre emprunt commence le ${startDate.toLocaleDateString('fr-FR')} et se termine le ${dueAt.toLocaleDateString('fr-FR')}.`,
+      data: { loan_id: id },
+    });
+
+    load();
+  }
+
+  async function refuseLoan(id: string) {
+    // 1. Récupérer le prêt
+    const { data: loan } = await supabase
+      .from('loans')
+      .select('*, physical_units(instrument_model_id)')
+      .eq('id', id)
+      .single();
+
+    if (!loan) return;
+
+    // 2. Annuler le prêt
+    await supabase.from('loans').update({
+      status: 'cancelled',
+    }).eq('id', id);
+
+    // 3. Remettre l'unité en disponible
+    if (loan.physical_unit_id) {
+      await supabase.from('physical_units').update({
+        status: 'available',
+      }).eq('id', loan.physical_unit_id);
+    }
+
+    // 4. Envoyer une notification à l'utilisateur
+    await supabase.from('notifications').insert({
+      user_id: loan.user_id,
+      type: 'loan_refused',
+      title: "Votre demande d'emprunt a été refusée",
+      message: "Malheureusement, votre demande n'a pas pu être acceptée. Contactez LAPS pour plus d'informations.",
+      data: { loan_id: id },
+    });
+
     load();
   }
 
   async function returnLoan(id: string) {
-    await supabase.from('loans').update({ status: 'returned', returned_at: new Date().toISOString() }).eq('id', id);
+    // 1. Récupérer le prêt
+    const { data: loan } = await supabase
+      .from('loans')
+      .select('physical_unit_id')
+      .eq('id', id)
+      .single();
+
+    // 2. Marquer comme retourné
+    await supabase.from('loans').update({
+      status: 'returned',
+      returned_at: new Date().toISOString(),
+    }).eq('id', id);
+
+    // 3. Remettre l'unité en disponible
+    if (loan?.physical_unit_id) {
+      await supabase.from('physical_units').update({
+        status: 'available',
+      }).eq('id', loan.physical_unit_id);
+    }
+
     load();
   }
 
@@ -125,14 +214,23 @@ export default function AdminScreen() {
         {loans.length === 0 && <Text style={styles.empty}>Aucun prêt actif.</Text>}
         {loans.map((l) => (
           <View key={l.id} style={styles.card}>
-            <Text style={styles.name}>{l.instrument_models?.name}</Text>
+            <Text style={styles.name}>{l.physical_units?.instrument_models?.name || 'Instrument'}</Text>
             <Text style={styles.info}>{l.profiles?.first_name} {l.profiles?.last_name}</Text>
-            <Text style={styles.info}>Statut : {l.status === 'requested' ? 'Demande' : 'En cours'}</Text>
-            {l.status === 'requested' ? (
-              <Button title="Remettre (départ 7 jours)" color="#ff2bd6" onPress={() => startLoan(l.id)} />
-            ) : (
-              <Button title="Retour" color="#f87171" onPress={() => returnLoan(l.id)} />
+            {l.physical_units?.serial_number && (
+              <Text style={styles.info}>SN: {l.physical_units.serial_number}</Text>
             )}
+            <Text style={styles.info}>Statut : {l.status === 'requested' ? 'Demande en attente' : l.status === 'active' ? 'En cours' : l.status}</Text>
+            {l.start_date && (
+              <Text style={styles.info}>Début souhaité : {new Date(l.start_date).toLocaleDateString('fr-FR')}</Text>
+            )}
+            {l.status === 'requested' ? (
+              <View style={styles.row}>
+                <Button title="Valider" color="#ff2bd6" onPress={() => startLoan(l.id)} />
+                <Button title="Refuser" color="#f87171" onPress={() => refuseLoan(l.id)} />
+              </View>
+            ) : l.status === 'active' ? (
+              <Button title="Retour" color="#f87171" onPress={() => returnLoan(l.id)} />
+            ) : null}
           </View>
         ))}
 

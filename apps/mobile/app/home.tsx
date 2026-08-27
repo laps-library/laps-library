@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as ExpoLinking from 'expo-linking';
-import { useEffect, useState } from 'react';
-import { Image, SafeAreaView, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Image, SafeAreaView, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,14 +11,54 @@ import { supabase } from '../lib/supabase';
 import AppButton from '../components/AppButton';
 import Bounceable from '../components/Bounceable';
 import { setBallInteraction } from '../components/BounceOverlay';
-import { GIF_TOP, HOME_GIF, HOME_H, HOME_W } from '../components/gifLayout';
+import { GIF_TOP, HOME_GIF, HOME_H, HOME_W, W } from '../components/gifLayout';
+
+function MarqueeText({ text, speed = 50 }: { text: string; speed?: number }) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const [containerWidth, setContainerWidth] = useState(0);
+  
+  // Estimation fiable de la largeur du texte (9px par caractère avec fontSize 12)
+  const estimatedWidth = Math.max(text.length * 9, 500);
+
+  useEffect(() => {
+    if (containerWidth === 0) return;
+    
+    const duration = (estimatedWidth + containerWidth) / speed * 1000;
+    translateX.setValue(containerWidth);
+    
+    const animation = Animated.loop(
+      Animated.timing(translateX, {
+        toValue: -estimatedWidth,
+        duration,
+        useNativeDriver: true,
+      })
+    );
+    
+    animation.start();
+    return () => animation.stop();
+  }, [estimatedWidth, containerWidth, speed, translateX]);
+
+  return (
+    <View 
+      style={styles.marqueeContainer}
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    >
+      <Animated.Text
+        style={[styles.marqueeText, { transform: [{ translateX }] }]}
+        numberOfLines={1}
+      >
+        {text}
+      </Animated.Text>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const [supervisedPending, setSupervisedPending] = useState<any>(null);
   const insets = useSafeAreaInsets();
   const [role, setRole] = useState('client');
   const [ballMode, setBallMode] = useState(false);
-
+  
   useEffect(() => {
     async function load() {
       const { data: sess } = await supabase.auth.getSession();
@@ -59,6 +100,12 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
+      <View style={styles.comingSoonBanner}>
+        <MarqueeText 
+          text="ATTENTION → Le LAPS n'est pas encore ouvert. Un mail vous sera envoyé pour vous donner la date d'ouverture du lieu et du système de réservation."
+          speed={40}
+        />
+      </View>
       <View style={styles.gifOverlay}>
         <Bounceable inset={0.3}>
           <Image source={HOME_GIF} style={{ width: HOME_W, height: HOME_H }} resizeMode="contain" />
@@ -132,6 +179,30 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
+  comingSoonBanner: {
+    position: 'absolute',
+    top: GIF_TOP - 90,
+    left: 0,
+    right: 0,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    zIndex: 11,
+  },
+  marqueeContainer: {
+    overflow: 'hidden',
+    width: '100%',
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  marqueeText: {
+    color: '#ff2bd6',
+    fontWeight: 'bold',
+    fontStyle: 'italic',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    fontSize: 12,
+  },
   gifOverlay: { position: 'absolute', top: GIF_TOP, left: 0, right: 0, alignItems: 'center', zIndex: 10 },
   container: { flex: 1, backgroundColor: '#000' },
   content: { flexGrow: 1, paddingHorizontal: 8, paddingTop: 24, gap: 4, paddingBottom: 16 },

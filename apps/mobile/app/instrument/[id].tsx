@@ -1,3 +1,4 @@
+import { Alert, router } from 'expo-router';
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -11,6 +12,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native';
 import YoutubePlayer from '../../components/YoutubePlayer';
 import { LOCAL_FULL_PHOTOS } from '../../assets/instruments/manifest-full';
@@ -80,7 +82,11 @@ export default function InstrumentDetailScreen() {
   const [plan, setPlan] = useState<any>(null);
   const [activeLoans, setActiveLoans] = useState(0);
   const [msg, setMsg] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState('');
+  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
   const [zoom, setZoom] = useState(false);
+  const [packageInstruments, setPackageInstruments] = useState<any[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -91,6 +97,7 @@ export default function InstrumentDetailScreen() {
         .single();
 
       setItem(data);
+
 
       const { data: sess } = await supabase.auth.getSession();
 
@@ -112,66 +119,90 @@ export default function InstrumentDetailScreen() {
         setPlan(pl);
       }
 
+      // Compter uniquement les prêts actifs (pas les futurs/réservés)
       const { count } = await supabase
         .from('loans')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', sess.session?.user.id)
-        .neq('status', 'returned');
+        .eq('status', 'active');
 
       setActiveLoans(count ?? 0);
+
+      // Charger les vidéos et manuels des instruments du package (pour les postes premium)
+      if (data?.package && Array.isArray(data.package) && data.package.length > 0) {
+        const { data: pkgInstruments } = await supabase
+          .from('instrument_models')
+          .select('name, videos, manual_url')
+          .in('name', data.package);
+        setPackageInstruments(pkgInstruments ?? []);
+      } else {
+        setPackageInstruments([]);
+      }
     }
 
     load();
   }, [id]);
 
-  async function requestLoan() {
-    if (profile?.id_document_status !== 'verified') {
-      setMsg("Pièce d'identité vérifiée requise pour emprunter.");
-      return;
+  // Calculer les 4 prochaines semaines disponibles
+  useEffect(() => {
+    const weeks: string[] = [];
+    const today = new Date();
+    
+    // Commencer à partir de la semaine prochaine
+    for (let i = 1; i <= 16; i++) {
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() + (i * 7));
+      // Arrondir au lundi
+      const day = weekStart.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      weekStart.setDate(weekStart.getDate() + diff);
+      
+      weeks.push(weekStart.toISOString().split('T')[0]);
     }
-
-    if (!plan?.can_borrow) {
-      setMsg("Ta formule ne permet pas d'emprunter d'instrument.");
-      return;
+    
+    setAvailableWeeks(weeks);
+    if (weeks.length > 0) {
+      setSelectedWeek(weeks[0]);
     }
+  }, []);
 
-    if (plan.max_loans != null && activeLoans >= plan.max_loans) {
-      setMsg(
-        `Maximum ${plan.max_loans} emprunt(s) en cours avec ta formule (${activeLoans} actuel).`
-      );
-      return;
+  async function pickDocument() {
+    if (!profile) return;
+    const res = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'], copyToCacheDirectory: true });
+    if (res.canceled || !res.assets?.length) return;
+    const file = res.assets[0];
+    setUploading(true);
+    try {
+      const resp = await fetch(file.uri);
+      const blob = await resp.blob();
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${profile.id}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('id-documents').upload(path, blob, { upsert: true });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase.from('profiles').update({
+        id_document_url: path,
+        id_document_status: 'pending',
+        id_uploaded_at: new Date().toISOString(),
+      }).eq('id', profile.id);
+      if (dbErr) { Alert.alert('Erreur DB', dbErr.message); return; }
+      Alert.alert('Envoyé', "Votre pièce d'identité sera vérifiée par un administrateur.");
+      setProfile({ ...profile, id_document_status: 'pending' });
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message || "Échec de l'envoi.");
+    } finally {
+      setUploading(false);
     }
+  }
 
-    // 1. Trouver une unité physique disponible du modèle demandé
-    const { data: unit, error: unitErr } = await supabase
-      .from('physical_units')
-      .select('id')
-      .eq('instrument_model_id', id)
-      .eq('is_borrowable', true)
-      .eq('status', 'available')
-      .limit(1)
-      .maybeSingle();
-
-    if (unitErr || !unit) {
-      setMsg("Aucune unité disponible pour cet instrument.");
-      return;
-    }
-
-    // 2. Créer le prêt avec l'unité physique
-    const { error } = await supabase
-      .from('loans')
-      .insert({
-        user_id: profile.id,
-        physical_unit_id: unit.id,
-        status: 'requested',
-      });
-
-    if (error) {
-      setMsg('Erreur : ' + error.message);
-    } else {
-      setMsg("Demande d'emprunt envoyée.");
-      setActiveLoans(n => n + 1);
-    }
+  function requestLoan() {
+    // Rediriger vers la page de réservation centralisée (choix de semaine là-bas)
+    router.push({
+      pathname: '/reserve',
+      params: {
+        instrument_id: id,
+        type: 'emprunt',
+      }
+    });
   }
 
   if (!item) return null;
@@ -184,8 +215,7 @@ export default function InstrumentDetailScreen() {
   const canRequest =
     item.borrowable &&
     item.acquired &&
-    plan?.can_borrow &&
-    (plan.max_loans == null || activeLoans < plan.max_loans);
+    plan?.can_borrow;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -284,6 +314,15 @@ export default function InstrumentDetailScreen() {
           />
         )}
 
+        {/* === MANUELS DES INSTRUMENTS DU PACKAGE === */}
+        {packageInstruments.filter(pkg => pkg.manual_url).map((pkg, idx) => (
+          <AppButton
+            key={`pkg-manual-${idx}`}
+            label={`Manuel — ${pkg.name}`}
+            onPress={() => Linking.openURL(pkg.manual_url)}
+          />
+        ))}
+
         {item.videos &&
           item.videos.length > 0 && (
             <Text style={styles.label}>
@@ -292,89 +331,196 @@ export default function InstrumentDetailScreen() {
           )}
 
         {(item.videos ?? []).map(
-          (v: any, idx: number) => (
-            <View
-              key={idx}
-              style={styles.videoWrap}
-            >
-              <Text style={styles.videoTitle}>
-                {v.channel === 'loopop'
-                  ? '_Loopop'
-                  : v.channel === 'sonicstate'
-                  ? '_Sonic State'
-                  : '_Vidéo'}
+          (v: any, idx: number) => {
+            // Mapping des chaînes YouTube connues
+            const channelLabels: Record<string, string> = {
+              loopop: '_Loopop',
+              sonicstate: '_Sonic State',
+              boombaptv: '_BoomBap TV',
+              gearslutz: '_Gearslutz',
+              sweetwater: '_Sweetwater',
+              'music-is-wine': '_Music Is Wine',
+              'the-sound-test-room': '_The Sound Test Room',
+              'pro-audio-reviews': '_Pro Audio Reviews',
+              'audiofanzine': '_Audiofanzine',
+              'jeff-friedman': '_Jeff Friedman',
+              'synth-junkie': '_Synth Junkie',
+              'cuckoo': '_Cuckoo',
+              'kijimi': '_Kijimi',
+              'automaticgainsay': '_AutomaticGainsay',
+              'dubby': '_Dubby',
+              'gloop': '_Gloop',
+              'synthesis': '_Synthesis',
+            };
 
-                {v.title
-                  ? ` · ${v.title}`
-                  : ''}
-              </Text>
+            const channelLabel = channelLabels[v.channel?.toLowerCase()] || '_Vidéo';
 
-              <YoutubePlayer
-                height={220}
-                videoId={ytId(v.id)}
-                play={false}
-              />
-            </View>
-          )
+            return (
+              <View
+                key={idx}
+                style={styles.videoWrap}
+              >
+                <Text style={styles.videoTitle}>
+                  {channelLabel}
+                  {v.title ? ` · ${v.title}` : ''}
+                </Text>
+
+                <YoutubePlayer
+                  height={220}
+                  videoId={ytId(v.id)}
+                  play={false}
+                />
+              </View>
+            );
+          }
         )}
 
-        {!item.borrowable && (
+        {/* === VIDÉOS DES INSTRUMENTS DU PACKAGE === */}
+        {packageInstruments.filter(pkg => pkg.videos && pkg.videos.length > 0).map((pkg, pkgIdx) => (
+          <View key={`pkg-videos-${pkgIdx}`}>
+            <Text style={[styles.label, { marginTop: 16 }]}>
+              _{pkg.name} — Vidéos
+            </Text>
+            {(pkg.videos ?? []).map((v: any, vIdx: number) => {
+              const channelLabels: Record<string, string> = {
+                loopop: '_Loopop',
+                sonicstate: '_Sonic State',
+                boombaptv: '_BoomBap TV',
+                gearslutz: '_Gearslutz',
+                sweetwater: '_Sweetwater',
+                'music-is-wine': '_Music Is Wine',
+                'the-sound-test-room': '_The Sound Test Room',
+                'pro-audio-reviews': '_Pro Audio Reviews',
+                'audiofanzine': '_Audiofanzine',
+                'jeff-friedman': '_Jeff Friedman',
+                'synth-junkie': '_Synth Junkie',
+                'cuckoo': '_Cuckoo',
+                'kijimi': '_Kijimi',
+                'automaticgainsay': '_AutomaticGainsay',
+                'dubby': '_Dubby',
+                'gloop': '_Gloop',
+                'synthesis': '_Synthesis',
+              };
+
+              const channelLabel = channelLabels[v.channel?.toLowerCase()] || '_Vidéo';
+
+              return (
+                <View
+                  key={vIdx}
+                  style={styles.videoWrap}
+                >
+                  <Text style={styles.videoTitle}>
+                    {channelLabel}
+                    {v.title ? ` · ${v.title}` : ''}
+                  </Text>
+
+                  <YoutubePlayer
+                    height={220}
+                    videoId={ytId(v.id)}
+                    play={false}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        ))}
+
+
+
+        {/* === SECTION EMPRUNT / RÉSERVATION UNIFIÉE === */}
+        {item.borrowable && item.acquired && (
+          <View style={styles.actionCard}>
+            <Text style={styles.actionTitle}>_Emprunt</Text>
+
+            {plan?.can_borrow ? (
+              <>
+                {/* Tarifs selon le plan */}
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionInfoLabel}>Tarif d'emprunt</Text>
+                  <Text style={styles.actionInfoValue}>
+                    {/nerd/i.test(plan.name || '') 
+                      ? "10 € / 1 semaine · 15 € / 2 semaines" 
+                      : "10 € / 1 semaine"}
+                  </Text>
+                </View>
+
+                {/* Pièce d'identité requise */}
+                {profile?.id_document_status !== 'verified' && (
+                  <View style={styles.actionInfo}>
+                    <Text style={styles.actionInfoLabel}>Pièce d'identité</Text>
+                    <Text style={styles.actionInfoValue}>
+                      {profile?.id_document_status === 'pending' 
+                        ? "En cours de vérification" 
+                        : "Requise pour emprunter"}
+                    </Text>
+                    {profile?.id_document_status !== 'pending' && (
+                      <TouchableOpacity
+                        onPress={pickDocument}
+                        style={[styles.actionButton, { backgroundColor: '#ff2bd6', marginTop: 8 }]}
+                        disabled={uploading}
+                      >
+                        <Text style={styles.actionButtonText}>
+                          {uploading ? 'Envoi...' : "Envoyer ma pièce d'identité"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Bouton d'emprunt (visible seulement si pièce vérifiée) */}
+                {profile?.id_document_status === 'verified' ? (
+                  <TouchableOpacity
+                    onPress={requestLoan}
+                    style={styles.actionButton}
+                  >
+                    <Text style={styles.actionButtonText}>Demander l'emprunt</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.note}>
+                    {profile?.id_document_status === 'pending' 
+                      ? "Ta pièce d'identité est en cours de vérification. Tu pourras emprunter une fois validée." 
+                      : "Envoie ta pièce d'identité pour pouvoir emprunter."}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text style={styles.note}>
+                Ta formule ne permet pas l'emprunt d'instrument.
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* === SECTION RÉSERVATION POUR INSTRUMENTS PREMIUM (SUR PLACE) === */}
+        {item.access_type === 'premium' && (
+          <View style={styles.actionCard}>
+            <Text style={styles.actionTitle}>_Réservation</Text>
+
+            <View style={styles.actionInfo}>
+              <Text style={styles.actionInfoLabel}>Instrument</Text>
+              <Text style={styles.actionInfoValue}>À utiliser sur place</Text>
+            </View>
+
+            <View style={styles.actionInfo}>
+              <Text style={styles.actionInfoLabel}>Durée d'un créneau</Text>
+              <Text style={styles.actionInfoValue}>3 heures</Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/reserve', params: { instrument_id: id } })}
+              style={styles.actionButton}
+            >
+              <Text style={styles.actionButtonText}>Réserver un créneau</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* === SECTION INSTRUMENTS SUR PLACE (non premium, non empruntables) === */}
+        {!item.borrowable && item.acquired && (!item.name || !(item.name || '').startsWith('Poste Premium')) && (
           <Text style={styles.note}>
             Instrument à utiliser sur place.
           </Text>
         )}
-
-        {item.borrowable &&
-          !item.acquired && (
-            <Text style={styles.note}>
-              Disponible à l'emprunt dès son arrivée.
-            </Text>
-          )}
-
-        {item.borrowable &&
-          item.acquired &&
-          !plan && (
-            <Text style={styles.note}>
-              Chargement de ta formule...
-            </Text>
-          )}
-
-        {item.borrowable &&
-          item.acquired &&
-          plan &&
-          !plan.can_borrow && (
-            <Text style={styles.note}>
-              Ta formule ne permet pas l'emprunt
-              d'instrument.
-            </Text>
-          )}
-
-        {item.borrowable &&
-          item.acquired &&
-          plan?.can_borrow && (
-            <Text style={styles.meta}>
-              Emprunt jusqu'à{' '}
-              {plan.loan_duration_days} jours · max{' '}
-              {plan.max_loans} ({activeLoans}/
-              {plan.max_loans} en cours)
-            </Text>
-          )}
-
-        {canRequest && (
-          <AppButton
-            label="Demander l'emprunt"
-            onPress={requestLoan}
-          />
-        )}
-
-        {item.borrowable &&
-          item.acquired &&
-          plan?.can_borrow &&
-          !canRequest && (
-            <Text style={styles.note}>
-              Limite d'emprunts atteinte avec ta formule.
-            </Text>
-          )}
 
         {msg ? (
           <Text style={styles.msg}>
@@ -486,6 +632,128 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     overflow: 'hidden',
+  },
+
+  // === SECTION EMPRUNT / RÉSERVATION ===
+  actionCard: {
+    borderWidth: 1,
+    borderColor: '#ff2bd6',
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+    backgroundColor: 'rgba(255, 43, 214, 0.04)',
+    marginVertical: 8,
+  },
+
+  actionTitle: {
+    color: '#ff2bd6',
+    fontWeight: 'bold',
+    fontStyle: 'italic',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    fontSize: 18,
+  },
+
+  actionInfo: {
+    gap: 4,
+  },
+
+  actionInfoLabel: {
+    color: '#8e8e93',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontStyle: 'italic',
+  },
+
+  actionInfoValue: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+
+  weeksSection: {
+    gap: 10,
+  },
+
+  weeksLabel: {
+    color: '#ff2bd6',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontStyle: 'italic',
+  },
+
+  weeksRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+
+  weekChip: {
+    width: 64,
+    height: 72,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+
+  weekChipSelected: {
+    borderColor: '#ff2bd6',
+    backgroundColor: '#ff2bd6',
+    shadowColor: '#ff2bd6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  weekDay: {
+    color: '#999',
+    fontSize: 20,
+    fontWeight: '700',
+    fontStyle: 'italic',
+  },
+
+  weekDaySelected: {
+    color: '#fff',
+  },
+
+  weekMonth: {
+    color: '#666',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+
+  weekMonthSelected: {
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+
+  actionButton: {
+    backgroundColor: '#ff2bd6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#ff2bd6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+
+  actionButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    fontStyle: 'italic',
   },
 
   note: {
