@@ -28,8 +28,11 @@ workflows:
           pod install
       - name: Set up signing
         script: |
-          echo "$IOS_P12_BASE64" | base64 -d > /tmp/dist.p12
-          security import /tmp/dist.p12 -k "$HOME/Library/Keychains/login.keychain-db" -P "$IOS_P12_PASSWORD" -A -T /usr/bin/codesign -T /usr/bin/security
+          echo "base64 length: ${#IOS_P12_BASE64}"
+          echo "password length: ${#IOS_P12_PASSWORD}"
+          echo "$IOS_P12_BASE64" | tr -d '[:space:]' | base64 -d > /tmp/dist.p12
+          ls -la /tmp/dist.p12
+          security import /tmp/dist.p12 -P "$IOS_P12_PASSWORD" -A -T /usr/bin/codesign -T /usr/bin/security
           security find-identity -v -p codesigning
           cd apps/mobile/ios
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
