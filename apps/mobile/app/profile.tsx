@@ -17,7 +17,6 @@ import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
 import BackButton from "../components/BackButton";
 import * as ExpoLinking from "expo-linking";
-import { configureBallMusic, noteName, SCALE_NAMES } from "../components/ballAudio";
 
 async function doLogout() {
   await supabase.auth.signOut();
@@ -201,22 +200,7 @@ export default function ProfileScreen() {
     if (data?.signedUrl) Linking.openURL(data.signedUrl);
   }
 
-  async function changeRoot(d: number) {
-    const cur = profile.music_root ?? 48;
-    const next = Math.max(0, Math.min(87, cur + d));
-    setProfile({ ...profile, music_root: next });
-    configureBallMusic(next, profile.music_scale ?? "Pentatonique mineure");
-    await supabase.from("profiles").update({ music_root: next }).eq("id", profile.id);
-  }
 
-  async function cycleScale() {
-    const cur = profile.music_scale ?? "Pentatonique mineure";
-    const idx = SCALE_NAMES.indexOf(cur);
-    const next = SCALE_NAMES[(idx + 1) % SCALE_NAMES.length];
-    setProfile({ ...profile, music_scale: next });
-    configureBallMusic(profile.music_root ?? 48, next);
-    await supabase.from("profiles").update({ music_scale: next }).eq("id", profile.id);
-  }
 
   const statusLabel = (s: string | null) =>
     s === "verified"
@@ -490,19 +474,6 @@ export default function ProfileScreen() {
           {profile.id_document_url && <AppButton label="Voir ma pièce" onPress={viewDocument} />}
 
           <AppButton label="Supprimer mon compte" onPress={handleDelete} />
-        </View>
-
-        <Text style={[styles.section, { color: "#ffffff" }]}>_Paramètre du jeu</Text>
-        <View style={styles.bigCard}>
-          <Text style={styles.label}>_Fondamentale</Text>
-          <Text style={styles.value}>{noteName(profile.music_root ?? 48)}</Text>
-          <View style={styles.row}>
-            <AppButton label="Note −" fontSize={12} onPress={() => changeRoot(-1)} />
-            <AppButton label="Note +" fontSize={12} onPress={() => changeRoot(1)} />
-          </View>
-          <Text style={styles.label}>_Gamme</Text>
-          <Text style={styles.value}>{profile.music_scale ?? "Pentatonique mineure"}</Text>
-          <AppButton label="Gamme suivante" fontSize={12} onPress={cycleScale} />
         </View>
 
         <AppButton label="Se déconnecter" onPress={doLogout} />

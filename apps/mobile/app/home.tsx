@@ -23,6 +23,8 @@ import { supabase } from "../lib/supabase";
 import Bounceable from "../components/Bounceable";
 import { setBallInteraction } from "../components/BounceOverlay";
 import { onBannerSwipeUp, onBannerHeight, setBannerMenuOpen } from "../components/MiniPlayer";
+import { configureBallMusic, noteName, SCALE_NAMES, setWallMode } from "../components/ballAudio";
+import { startGame, endGame, onGameStateChange, setScoreSave } from "../components/ballGame";
 import { GIF_TOP, HOME_GIF, HOME_H, HOME_W, W } from "../components/gifLayout";
 import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 
@@ -34,9 +36,9 @@ function MenuCoverflow({
   items: { label: string; action: () => void; active: boolean }[];
 }) {
   const SCREEN_W = Dimensions.get("window").width;
-  const INNER_W = SCREEN_W - 46;
-  const CARD_W = Math.round(INNER_W * 0.42);
-  const CARD_MARGIN = 0;
+  const INNER_W = SCREEN_W - 54;
+  const CARD_W = Math.round(INNER_W * 0.32);
+  const CARD_MARGIN = 6;
   const SNAP = CARD_W + CARD_MARGIN;
   const SIDE_PAD = (INNER_W - CARD_W) / 2;
 
@@ -95,28 +97,33 @@ function MenuCoverflow({
           useNativeDriver: true,
         })}
         onMomentumScrollEnd={handleMomentumEnd}
-        style={{ overflow: "visible" }}
+        style={{ overflow: "hidden" }}
       >
         {loopedItems.map((item, index) => {
           const inputRange = [(index - 1) * SNAP, index * SNAP, (index + 1) * SNAP];
           const rotateY = scrollX.interpolate({
             inputRange,
-            outputRange: ["35deg", "0deg", "-35deg"],
+            outputRange: ["25deg", "0deg", "-25deg"],
             extrapolate: "clamp",
           });
           const scale = scrollX.interpolate({
             inputRange,
-            outputRange: [0.88, 1, 0.88],
+            outputRange: [0.92, 1, 0.92],
             extrapolate: "clamp",
           });
           const opacity = scrollX.interpolate({
             inputRange,
-            outputRange: [0.55, 1, 0.55],
+            outputRange: [0.65, 1, 0.65],
             extrapolate: "clamp",
           });
           const translateX = scrollX.interpolate({
             inputRange,
-            outputRange: [8, 0, -8],
+            outputRange: [4, 0, -4],
+            extrapolate: "clamp",
+          });
+          const textScale = scrollX.interpolate({
+            inputRange,
+            outputRange: [0.75, 1.15, 0.75],
             extrapolate: "clamp",
           });
           const realIndex = ((index % items.length) + items.length) % items.length;
@@ -135,18 +142,36 @@ function MenuCoverflow({
                 onPress={() => item.action()}
                 style={{ alignItems: "center", paddingVertical: 6 }}
               >
-                <Text
-                  style={[styles.carouselText, item.active ? { color: "#ff2bd6" } : null]}
+                <Animated.Text
+                  style={[
+                    styles.carouselText,
+                    { transform: [{ scale: textScale }] },
+                    item.active ? { color: "#ff2bd6" } : null,
+                  ]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                 >
                   {item.label}
-                </Text>
+                </Animated.Text>
               </Pressable>
             </Animated.View>
           );
         })}
       </AnimatedGHScrollView>
+      <LinearGradient
+        colors={["#000", "transparent"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ position: "absolute", left: -14, top: 0, bottom: 0, width: 34 }}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={["transparent", "#000"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ position: "absolute", right: -14, top: 0, bottom: 0, width: 34 }}
+        pointerEvents="none"
+      />
     </View>
   );
 }
@@ -183,6 +208,40 @@ export default function HomeScreen() {
 
   useEffect(() => onBannerSwipeUp(openMenu), []);
 
+  useEffect(() => {
+    if (!showScaleBubble) return;
+    (async () => {
+      const { data } = await supabase
+        .from("ball_scores")
+        .select("score, pseudo, profiles(pseudo)")
+        .order("score", { ascending: false })
+        .limit(10);
+      setTopScores((data ?? []) as any[]);
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess.session?.user.id;
+      if (uid) {
+        const { data: mine } = await supabase
+          .from("ball_scores")
+          .select("score")
+          .eq("user_id", uid)
+          .order("score", { ascending: false })
+          .limit(1);
+        setMyBest(mine && mine.length ? mine[0].score : null);
+      }
+    })();
+  }, [showScaleBubble]);
+
+  useEffect(
+    () =>
+      onGameStateChange((s) => {
+        if (s.over) {
+          setBallMode(false);
+          setBallInteraction(false);
+        }
+      }),
+    []
+  );
+
   const carouselSwipe = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -199,6 +258,16 @@ export default function HomeScreen() {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess.session?.user.id;
       if (!uid) return;
+      setUserId(uid);
+      const { data: pSettings } = await supabase
+        .from("profiles")
+        .select("music_root, music_scale")
+        .eq("id", uid)
+        .single();
+      if (pSettings) {
+        setMusicRoot(pSettings.music_root ?? 48);
+        setMusicScale(pSettings.music_scale ?? "Pentatonique mineure");
+      }
       const { data: p } = await supabase
         .from("profiles")
         .select("role, plan_id, subscription_expires_at")
@@ -232,22 +301,50 @@ export default function HomeScreen() {
   }, []);
 
   const [showScaleBubble, setShowScaleBubble] = useState(false);
-  const [scale, setScale] = useState("Pentatonique");
+  const [musicScale, setMusicScale] = useState<string>("Pentatonique mineure");
+  const [musicRoot, setMusicRoot] = useState<number>(48);
+  const [wallMode, setWallModeState] = useState<"sequence" | "random">("sequence");
+  const [scoreSave, setScoreSaveState] = useState<boolean>(true);
+  const [bubblePage, setBubblePage] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [topScores, setTopScores] = useState<any[]>([]);
+  const [myBest, setMyBest] = useState<number | null>(null);
 
   function toggleBallMode() {
     if (ballMode) {
       setBallMode(false);
       setBallInteraction(false);
+      endGame();
     } else {
       setShowScaleBubble(true);
     }
   }
 
+  async function changeMusicRoot(d: number) {
+    const next = Math.max(0, Math.min(87, musicRoot + d));
+    setMusicRoot(next);
+    configureBallMusic(next, musicScale);
+    if (userId) {
+      await supabase.from("profiles").update({ music_root: next }).eq("id", userId);
+    }
+  }
+
+  async function setMusicScaleChoice(s: string) {
+    setMusicScale(s);
+    configureBallMusic(musicRoot, s);
+    if (userId) {
+      await supabase.from("profiles").update({ music_scale: s }).eq("id", userId);
+    }
+  }
+
   function startBallGame() {
-    AsyncStorage.setItem("ball_scale", scale);
+    AsyncStorage.setItem("ball_scale", musicScale);
+    AsyncStorage.setItem("ball_root", String(musicRoot));
+    configureBallMusic(musicRoot, musicScale);
     setShowScaleBubble(false);
     setBallMode(true);
     setBallInteraction(true);
+    startGame(musicScale, musicRoot);
   }
 
   const menuItems = [
@@ -299,34 +396,148 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.gifOverlay, { top: GIF_TOP + insets.top }]}>
-        <Bounceable inset={0.3}>
-          <Image source={HOME_GIF} style={{ width: HOME_W, height: HOME_H }} resizeMode="contain" />
-        </Bounceable>
-      </View>
+      {!ballMode && (
+        <View style={[styles.gifOverlay, { top: GIF_TOP + insets.top }]}>
+          <Bounceable inset={0.3}>
+            <Image source={HOME_GIF} style={{ width: HOME_W, height: HOME_H }} resizeMode="contain" />
+          </Bounceable>
+        </View>
+      )}
       <StatusBar style="light" />
 
-      <View style={styles.carouselFrame}>
-        <MenuCoverflow items={menuItems} />
-      </View>
+      {!ballMode && (
+        <View style={styles.carouselFrame}>
+          <MenuCoverflow items={menuItems} />
+        </View>
+      )}
 
       {showScaleBubble && (
         <View style={styles.bubbleOverlay}>
           <View style={styles.bubble}>
-            <Text style={styles.bubbleTitle}>GAMME DU JEU</Text>
-            <Text style={styles.bubbleHelp}>
-              Touche l'écran pour lancer des balles sonores.{"\n"}
-              Chaque rebond joue une note de la gamme choisie.
-            </Text>
+            <ScrollView style={{ maxHeight: 430 }} showsVerticalScrollIndicator={false}>
+            {bubblePage === 1 && (
+              <View>
+            <View style={styles.bubbleCard}>
+            <Text style={styles.setLabel}>_Fondamentale</Text>
+            <View style={styles.bubbleRootRow}>
+              <Pressable style={styles.bubbleRootBtn} onPress={() => changeMusicRoot(-1)}>
+                <Text style={styles.bubbleRootBtnText}>-</Text>
+              </Pressable>
+              <Text style={styles.bubbleRootValue}>{noteName(musicRoot)}</Text>
+              <Pressable style={styles.bubbleRootBtn} onPress={() => changeMusicRoot(1)}>
+                <Text style={styles.bubbleRootBtnText}>+</Text>
+              </Pressable>
+            </View>
+            <View style={styles.setSep} />
+            <Text style={styles.setLabel}>_Mélodie des murs</Text>
             <View style={styles.bubbleRow}>
-              {["Pentatonique", "Majeure", "Mineure", "Blues"].map((s) => (
+              {(["sequence", "random"] as const).map((m) => (
+                <Pressable
+                  key={m}
+                  style={[styles.bubbleChip, wallMode === m && styles.bubbleChipActive]}
+                  onPress={() => {
+                    setWallMode(m);
+                    setWallModeState(m);
+                  }}
+                >
+                  <Text style={[styles.bubbleChipText, wallMode === m && styles.bubbleChipTextActive]}>
+                    {m === "sequence" ? "SEQUENCE" : "ALEATOIRE"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.setSep} />
+            <Text style={styles.setLabel}>_Gamme</Text>
+            <View style={styles.bubbleRow}>
+              {SCALE_NAMES.map((s) => (
                 <Pressable
                   key={s}
-                  style={[styles.bubbleChip, scale === s && styles.bubbleChipActive]}
-                  onPress={() => setScale(s)}
+                  style={[styles.bubbleChip, musicScale === s && styles.bubbleChipActive]}
+                  onPress={() => setMusicScaleChoice(s)}
                 >
-                  <Text style={[styles.bubbleChipText, scale === s && styles.bubbleChipTextActive]}>
+                  <Text style={[styles.bubbleChipText, musicScale === s && styles.bubbleChipTextActive]}>
                     {s}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            </View>
+              </View>
+            )}
+            {bubblePage === 0 && (
+              <View>
+                <Text style={styles.bubbleTitle}>COMMENT JOUER</Text>
+                <View style={styles.bubbleCard}>
+                  <Text style={styles.bubbleLine}>- Touche l'écran : lancer la balle</Text>
+                  <Text style={styles.bubbleLine}>- Glisse le doigt : déplacer la raquette</Text>
+                  <Text style={styles.bubbleLine}>- Touche une balle en jeu : la démultiplie (1 à 3)</Text>
+                  <Text style={styles.bubbleLine}>- Bloc blanc : +1 balle · Bloc plein : 2 coups</Text>
+                  <Text style={styles.bubbleLine}>- Rangée complète : arpège + bonus</Text>
+                  <Text style={styles.bubbleLine}>- Capsules : R+ large · RA ralenti · FEU traverse · x3 multi · +1 vie · R- piège</Text>
+                  <Text style={styles.bubbleLine}>- Combo : enchaîne les blocs sans rater, la balle accélère</Text>
+                  <Text style={styles.bubbleLine}>- Balle ratée : -1 vie · 30 s par niveau</Text>
+                  <Text style={styles.bubbleLine}>- Murs : mélodie de la gamme (séquence ou aléatoire)</Text>
+                  <Text style={styles.bubbleLine}>- Fin de partie : ta musique peut être enregistrée en .mid via la feuille de partage</Text>
+                  <Text style={styles.bubbleLine}>- Choisis si ton score entre au classement</Text>
+                </View>
+              </View>
+            )}
+            {bubblePage === 1 && (
+              <View>
+            <View style={styles.bubbleCard}>
+            <Text style={styles.setLabel}>_Mon score</Text>
+            <View style={styles.bubbleRow}>
+              {([true, false] as const).map((v) => (
+                <Pressable
+                  key={String(v)}
+                  style={[styles.bubbleChip, scoreSave === v && styles.bubbleChipActive]}
+                  onPress={() => {
+                    setScoreSave(v);
+                    setScoreSaveState(v);
+                  }}
+                >
+                  <Text style={[styles.bubbleChipText, scoreSave === v && styles.bubbleChipTextActive]}>
+                    {v ? "CLASSE" : "ANONYME"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+              </View>
+            </View>
+            )}
+            {bubblePage === 2 && (
+              <View>
+            <Text style={styles.bubbleTitle}>CLASSEMENT</Text>
+            {topScores.length === 0 ? (
+              <Text style={styles.bubbleHelp}>Aucun score enregistre. Sois le premier !</Text>
+            ) : (
+              <View style={{ gap: 3 }}>
+                {topScores.map((s: any, i: number) => (
+                  <View key={i} style={styles.scoreRow}>
+                    <Text style={styles.scoreRank}>{i + 1}.</Text>
+                    <Text style={styles.scoreName} numberOfLines={1}>
+                      {s.pseudo ?? s.profiles?.pseudo ?? "Joueur"}
+                    </Text>
+                    <Text style={styles.scoreVal}>{s.score}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {myBest !== null && (
+              <Text style={styles.bubbleHelp}>Ton record : {myBest} pts</Text>
+            )}
+              </View>
+            )}
+            </ScrollView>
+            <View style={styles.bubbleTabs}>
+              {["REGLES", "REGLAGES", "CLASSEMENT"].map((t, i) => (
+                <Pressable
+                  key={t}
+                  style={[styles.bubbleTab, bubblePage === i && styles.bubbleTabActive]}
+                  onPress={() => setBubblePage(i)}
+                >
+                  <Text style={[styles.bubbleTabText, bubblePage === i && styles.bubbleTabTextActive]}>
+                    {t}
                   </Text>
                 </Pressable>
               ))}
@@ -404,11 +615,28 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: "rgba(255,255,255,0.5)",
   },
-  bubbleChipActive: { backgroundColor: "#ff2bd6", borderColor: "#ff2bd6" },
-  bubbleChipText: { color: "#ccc", fontSize: 11, fontWeight: "bold" },
-  bubbleChipTextActive: { color: "#000" },
+  bubbleChipActive: { backgroundColor: "rgba(255,43,214,0.12)", borderColor: "#ff2bd6" },
+  bubbleRootRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, marginVertical: 4 },
+  bubbleRootBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: "#ff2bd6", alignItems: "center", justifyContent: "center" },
+  bubbleRootBtnText: { color: "#ff2bd6", fontSize: 20, fontWeight: "bold", lineHeight: 22 },
+  bubbleRootValue: { color: "#fff", fontWeight: "bold", fontStyle: "italic", fontSize: 18, letterSpacing: 1, minWidth: 50, textAlign: "center" },
+  scoreRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  bubbleCard: { borderWidth: 1, borderColor: "#ff2bd6", borderRadius: 12, padding: 14, backgroundColor: "#000", marginBottom: 8 },
+  setLabel: { fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", fontSize: 10, color: "#fff", letterSpacing: 1, marginBottom: 8 },
+  setSep: { borderTopWidth: 1, borderTopColor: "rgba(255,43,214,0.35)", marginVertical: 12 },
+  bubbleLine: { color: "#ccc", fontSize: 11, fontStyle: "italic", lineHeight: 16, marginBottom: 7, textAlign: "left" },
+  bubbleTabs: { flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 10 },
+  bubbleTab: { borderWidth: 1, borderColor: "#444", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
+  bubbleTabActive: { borderColor: "#ff2bd6", backgroundColor: "rgba(255,43,214,0.15)" },
+  bubbleTabText: { color: "#8e8e93", fontSize: 10, fontWeight: "bold", fontStyle: "italic", letterSpacing: 1 },
+  bubbleTabTextActive: { color: "#ff2bd6" },
+  scoreRank: { color: "#ff2bd6", fontWeight: "bold", fontStyle: "italic", fontSize: 12, width: 20 },
+  scoreName: { color: "#fff", fontWeight: "bold", fontStyle: "italic", fontSize: 12, flex: 1 },
+  scoreVal: { color: "#ff2bd6", fontWeight: "bold", fontSize: 12 },
+  bubbleChipText: { color: "#fff", fontSize: 11, fontWeight: "bold" },
+  bubbleChipTextActive: { color: "#ff2bd6" },
   bubbleActions: { flexDirection: "row", gap: 8, justifyContent: "center", alignItems: "center" },
   bubbleStart: {
     backgroundColor: "#fff",
@@ -442,7 +670,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     zIndex: 45,
     overflow: "hidden",
   },
