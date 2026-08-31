@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -12,82 +12,21 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
-import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
-import { LOCAL_PHOTOS } from '../assets/instruments/manifest';
+} from "react-native";
+import { Image as ExpoImage } from "expo-image";
+import { ScrollView as GHScrollView } from "react-native-gesture-handler";
+import { LOCAL_PHOTOS } from "../assets/instruments/manifest";
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView) as any;
-import BackButton from '../components/BackButton';
-import { supabase } from '../lib/supabase';
+import BackButton from "../components/BackButton";
+import { supabase } from "../lib/supabase";
+import { photoSource, stationPhotoSource, isAccessory } from "../lib/instrumentUtils";
 
-const SCREEN_W = Dimensions.get('window').width;
-const CARD_W = Math.round(Math.min(SCREEN_W * 0.8, 380));
+const SCREEN_W = Dimensions.get("window").width;
+const CARD_W = Math.round(Math.min(SCREEN_W * 0.66, 300));
 const CARD_MARGIN = 18;
 const SNAP = CARD_W + CARD_MARGIN;
 const SIDE_PAD = (SCREEN_W - CARD_W) / 2;
-
-function cleanKey(s: string) {
-  return (s || '')
-    .toString()
-    .trim()
-    .replace(/[\/\\:*?"<>|']/g, '')
-    .replace(/\s+/g, '-');
-}
-
-function photoSource(i: any) {
-  const k = cleanKey(i.brand) + '/' + cleanKey(i.name);
-
-  if ((LOCAL_PHOTOS as any)[k]) return (LOCAL_PHOTOS as any)[k];
-
-  const found = Object.keys(LOCAL_PHOTOS).find(
-    (key) =>
-      key.toLowerCase().replace(/[^a-z0-9]/g, '') ===
-      k.toLowerCase().replace(/[^a-z0-9]/g, '')
-  );
-
-  if (found) return (LOCAL_PHOTOS as any)[found];
-  return null;
-}
-
-const PHOTO_ALIASES: Record<string, string> = {
-  'OBX8 Module': 'Oberheim/OBX-8-DESKTOP',
-};
-
-const STATION_NAME_PHOTO_OVERRIDES: Record<string, string> = {
-  'Production Phonographique': 'Teenage Engineering/APC-2',
-  'Traitement du Signal': 'Sherman/Filterbank 2 Dual ',
-};
-
-function stationPhotoSource(st: any) {
-  const override = STATION_NAME_PHOTO_OVERRIDES[st.name];
-  if (override && (LOCAL_PHOTOS as any)[override]) return (LOCAL_PHOTOS as any)[override];
-
-  const own = photoSource(st);
-  if (own) return own;
-
-  for (const item of st.package ?? []) {
-    const alias = (PHOTO_ALIASES as any)[item];
-    if (alias && (LOCAL_PHOTOS as any)[alias]) return (LOCAL_PHOTOS as any)[alias];
-
-    const ck = cleanKey(item).toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    const foundDirect = Object.keys(LOCAL_PHOTOS).find(
-      (k) => (k.split('/')[1] ?? '').toLowerCase().replace(/[^a-z0-9]/g, '') === ck
-    );
-    if (foundDirect) return (LOCAL_PHOTOS as any)[foundDirect];
-
-    const brandKey = cleanKey(st.brand ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const ckNoBrand = ck.startsWith(brandKey) ? ck.slice(brandKey.length) : ck;
-
-    const foundNoBrand = Object.keys(LOCAL_PHOTOS).find(
-      (k) => (k.split('/')[1] ?? '').toLowerCase().replace(/[^a-z0-9]/g, '') === ckNoBrand
-    );
-    if (foundNoBrand) return (LOCAL_PHOTOS as any)[foundNoBrand];
-  }
-
-  return null;
-}
 
 type Row = {
   id: string;
@@ -109,32 +48,21 @@ type Row = {
 };
 
 const TABS = [
-  { key: 'empruntable', label: 'EMPRUNTABLE' },
-  { key: 'premium', label: 'PREMIUM' },
-  { key: 'libre_service', label: 'LIBRE SERVICE' },
+  { key: "empruntable", label: "EMPRUNTABLE" },
+  { key: "premium", label: "PREMIUM" },
+  { key: "libre_service", label: "LIBRE SERVICE" },
 ];
 
 const TYPES = [
-  'Synthé modulaire',
-  'Synthé polyphonique',
-  'Synthé monophonique',
-  'Drum Machine',
-  'Sampler',
-  'Groovebox',
-  'Effet',
-  'Matériel',
+  "Synthé modulaire",
+  "Synthé polyphonique",
+  "Synthé monophonique",
+  "Drum Machine",
+  "Sampler",
+  "Groovebox",
+  "Effet",
+  "Matériel",
 ];
-
-const ACCESSORY_LINES = [
-  'interface audio ssl 18',
-  'casque shure srh440a',
-  '× 2 unités reliées en polychain',
-];
-
-function isAccessory(line: string) {
-  const l = line.toLowerCase();
-  return ACCESSORY_LINES.some((a) => l.includes(a)) || l.startsWith('keystage');
-}
 
 /*
  * Carrousel "manège" : liste triplée pour permettre un défilement infini,
@@ -204,7 +132,9 @@ function InfiniteCoverflow({
       contentContainerStyle={{ paddingHorizontal: SIDE_PAD }}
       contentOffset={{ x: baseOffset, y: 0 }}
       scrollEventThrottle={16}
-      onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
+      onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+        useNativeDriver: true,
+      })}
       onMomentumScrollEnd={handleMomentumEnd}
     >
       {loopedItems.map((item, index) => {
@@ -212,26 +142,26 @@ function InfiniteCoverflow({
 
         const rotateY = scrollX.interpolate({
           inputRange,
-          outputRange: ['48deg', '0deg', '-48deg'],
-          extrapolate: 'clamp',
+          outputRange: ["24deg", "0deg", "-24deg"],
+          extrapolate: "clamp",
         });
 
         const scale = scrollX.interpolate({
           inputRange,
-          outputRange: [0.76, 1, 0.76],
-          extrapolate: 'clamp',
+          outputRange: [0.92, 1, 0.92],
+          extrapolate: "clamp",
         });
 
         const opacity = scrollX.interpolate({
           inputRange,
-          outputRange: [0.45, 1, 0.45],
-          extrapolate: 'clamp',
+          outputRange: [0.75, 1, 0.75],
+          extrapolate: "clamp",
         });
 
         const translateX = scrollX.interpolate({
           inputRange,
           outputRange: [22, 0, -22],
-          extrapolate: 'clamp',
+          extrapolate: "clamp",
         });
 
         return (
@@ -257,24 +187,24 @@ function InfiniteCoverflow({
 export default function CatalogScreen() {
   const verticalScrollRef = useRef<any>(null);
   const [rows, setRows] = useState<Row[]>([]);
-  const [tab, setTab] = useState('empruntable');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [tab, setTab] = useState("empruntable");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [typeOpen, setTypeOpen] = useState(false);
   const [showComing, setShowComing] = useState(false);
 
   useEffect(() => {
     async function load() {
       const { data, error } = await supabase
-        .from('instrument_models')
+        .from("instrument_models")
         .select(
-          'id, name, brand, category, borrowable, year, synthesis_type, photo_url, ease_of_use, acquired, access_type, kind, package, units, sort_order, description'
+          "id, name, brand, category, borrowable, year, synthesis_type, photo_url, ease_of_use, acquired, access_type, kind, package, units, sort_order, description",
         )
-        .in('kind', ['instrument', 'premium_station'])
-        .order('brand')
-        .order('name');
+        .in("kind", ["instrument", "premium_station"])
+        .order("brand")
+        .order("name");
 
       if (error) {
-        console.error('Erreur chargement catalogue:', error);
+        // Erreur de chargement du catalogue (silent)
         return;
       }
 
@@ -286,40 +216,42 @@ export default function CatalogScreen() {
 
   useEffect(() => {
     setShowComing(false);
-    setTypeFilter('all');
+    setTypeFilter("all");
   }, [tab]);
 
   const stations = rows
-    .filter((r) => r.kind === 'premium_station' && !r.name.toLowerCase().includes('keystage'))
+    .filter((r) => r.kind === "premium_station" && !r.name.toLowerCase().includes("keystage"))
     .sort((a, b) => (a.sort_order ?? 99) - (b.sort_order ?? 99));
 
-  const instruments = rows.filter((r) => r.kind === 'instrument' && !r.name.toLowerCase().includes('keystage'));
+  const instruments = rows.filter(
+    (r) => r.kind === "instrument" && !r.name.toLowerCase().includes("keystage"),
+  );
 
   const currentInstruments = instruments.filter((i) => {
     if (!i.acquired) return false;
-    if (tab === 'empruntable') {
-      return i.borrowable || (i.access_type ?? '').toLowerCase() === 'empruntable';
+    if (tab === "empruntable") {
+      return i.borrowable || (i.access_type ?? "").toLowerCase() === "empruntable";
     }
-    return tab === 'libre_service' && (i.access_type ?? 'libre_service') === 'libre_service';
+    return tab === "libre_service" && (i.access_type ?? "libre_service") === "libre_service";
   });
 
   const comingInstruments = instruments.filter((i) => {
     if (i.acquired) return false;
-    if (tab === 'empruntable') {
-      return i.borrowable || (i.access_type ?? '').toLowerCase() === 'empruntable';
+    if (tab === "empruntable") {
+      return i.borrowable || (i.access_type ?? "").toLowerCase() === "empruntable";
     }
-    return tab === 'libre_service' && (i.access_type ?? 'libre_service') === 'libre_service';
+    return tab === "libre_service" && (i.access_type ?? "libre_service") === "libre_service";
   });
 
   const currentStations = stations.filter((s) => s.acquired);
   const comingStations = stations.filter((s) => !s.acquired);
 
   const filteredCurrentInstruments = currentInstruments.filter((i) =>
-    typeFilter === 'all' ? true : i.category === typeFilter
+    typeFilter === "all" ? true : i.category === typeFilter,
   );
 
   const filteredComingInstruments = comingInstruments.filter((i) =>
-    typeFilter === 'all' ? true : i.category === typeFilter
+    typeFilter === "all" ? true : i.category === typeFilter,
   );
 
   function renderStationCardContent(s: Row, shouldLoadImage: boolean) {
@@ -331,7 +263,7 @@ export default function CatalogScreen() {
         onPress={() => router.push(`/instrument/${s.id}`)}
         style={styles.stationCardTouchable}
       >
-        <Text style={styles.stationName}>{s.name.replace('Poste Premium — ', '')}</Text>
+        <Text style={styles.stationName}>{s.name.replace("Poste Premium — ", "")}</Text>
 
         {stationPhotoSource(s) && shouldLoadImage ? (
           <View style={styles.carouselPhotoBox}>
@@ -351,7 +283,10 @@ export default function CatalogScreen() {
 
         <View style={styles.stationPackageBlock}>
           {packageLines.map((p, idx) => (
-            <Text key={idx} style={[styles.stationPackageLine, !isAccessory(p) && styles.stationPackageLineBold]}>
+            <Text
+              key={idx}
+              style={[styles.stationPackageLine, !isAccessory(p) && styles.stationPackageLineBold]}
+            >
               _ {p}
             </Text>
           ))}
@@ -387,16 +322,23 @@ export default function CatalogScreen() {
 
         <Text style={styles.instrumentBrand}>
           {item.brand}
-          {item.year ? ` · ${item.year}` : ''}
+          {item.year ? ` · ${item.year}` : ""}
         </Text>
-        {item.synthesis_type ? <Text style={styles.instrumentMeta}>{item.synthesis_type}</Text> : null}
+        {item.synthesis_type ? (
+          <Text style={styles.instrumentMeta}>{item.synthesis_type}</Text>
+        ) : null}
         {item.description ? <Text style={styles.instrumentDesc}>{item.description}</Text> : null}
         {item.ease_of_use != null ? (
           <Text style={styles.instrumentMeta}>_Facilité d'utilisation : {item.ease_of_use}/5</Text>
         ) : null}
 
         <View style={styles.badges}>
-          <Text style={styles.badge}>{item.borrowable ? 'Empruntable' : 'Sur place'}</Text>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            {(item.borrowable || (item.access_type ?? "").toLowerCase() === "empruntable") && (
+              <Text style={styles.badge}>Empruntable</Text>
+            )}
+            <Text style={styles.badge}>Sur place</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -428,38 +370,49 @@ export default function CatalogScreen() {
         </View>
       </View>
 
-      {tab !== 'premium' && (
+      {tab !== "premium" && (
         <View style={styles.filterModule}>
           <Text style={styles.filterLabel}>_Filtrer les instruments</Text>
 
           <TouchableOpacity
-            style={[styles.typeButton, typeFilter !== 'all' && styles.typeButtonActive]}
+            style={[styles.typeButton, typeFilter !== "all" && styles.typeButtonActive]}
             onPress={() => setTypeOpen(true)}
             activeOpacity={0.8}
           >
             <Text
-              style={[styles.typeButtonText, typeFilter !== 'all' && styles.typeButtonTextActive]}
+              style={[styles.typeButtonText, typeFilter !== "all" && styles.typeButtonTextActive]}
               numberOfLines={1}
               adjustsFontSizeToFit
             >
-              {typeFilter === 'all' ? 'Tous les types' : typeFilter}
+              {typeFilter === "all" ? "Tous les types" : typeFilter}
             </Text>
-            <Text style={[styles.typeArrow, typeFilter !== 'all' && styles.typeButtonTextActive]}>▾</Text>
+            <Text style={[styles.typeArrow, typeFilter !== "all" && styles.typeButtonTextActive]}>
+              ▾
+            </Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <Modal transparent visible={typeOpen} animationType="fade" onRequestClose={() => setTypeOpen(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setTypeOpen(false)}>
+      <Modal
+        transparent
+        visible={typeOpen}
+        animationType="fade"
+        onRequestClose={() => setTypeOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setTypeOpen(false)}
+        >
           <View style={styles.modalBox}>
             <TouchableOpacity
               style={styles.option}
               onPress={() => {
-                setTypeFilter('all');
+                setTypeFilter("all");
                 setTypeOpen(false);
               }}
             >
-              <Text style={[styles.optionText, typeFilter === 'all' && styles.optionTextActive]}>
+              <Text style={[styles.optionText, typeFilter === "all" && styles.optionTextActive]}>
                 Tous les types
               </Text>
             </TouchableOpacity>
@@ -473,21 +426,31 @@ export default function CatalogScreen() {
                   setTypeOpen(false);
                 }}
               >
-                <Text style={[styles.optionText, typeFilter === t && styles.optionTextActive]}>{t}</Text>
+                <Text style={[styles.optionText, typeFilter === t && styles.optionTextActive]}>
+                  {t}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </TouchableOpacity>
       </Modal>
 
-      <GHScrollView ref={verticalScrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {tab === 'premium' && (
+      <GHScrollView
+        ref={verticalScrollRef}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {tab === "premium" && (
           <>
             <View style={styles.section}>
               {currentStations.length > 0 ? (
                 <>
                   <Text style={styles.comingTitle}>_Disponible</Text>
-                  <InfiniteCoverflow items={currentStations} renderCard={renderStationCardContent} verticalScrollRef={verticalScrollRef} />
+                  <InfiniteCoverflow
+                    items={currentStations}
+                    renderCard={renderStationCardContent}
+                    verticalScrollRef={verticalScrollRef}
+                  />
                 </>
               ) : (
                 <Text style={styles.empty}>Aucun poste premium disponible.</Text>
@@ -497,7 +460,11 @@ export default function CatalogScreen() {
             {comingStations.length > 0 && (
               <>
                 {!showComing && (
-                  <TouchableOpacity style={styles.comingButton} onPress={() => setShowComing(true)} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.comingButton}
+                    onPress={() => setShowComing(true)}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.comingButtonText}>À VENIR</Text>
                   </TouchableOpacity>
                 )}
@@ -505,7 +472,11 @@ export default function CatalogScreen() {
                 {showComing && (
                   <View style={styles.comingSection}>
                     <Text style={styles.comingTitle}>_À venir</Text>
-                    <InfiniteCoverflow items={comingStations} renderCard={renderStationCardContent} verticalScrollRef={verticalScrollRef} />
+                    <InfiniteCoverflow
+                      items={comingStations}
+                      renderCard={renderStationCardContent}
+                      verticalScrollRef={verticalScrollRef}
+                    />
 
                     <TouchableOpacity
                       style={styles.comingButton}
@@ -521,11 +492,15 @@ export default function CatalogScreen() {
           </>
         )}
 
-        {(tab === 'libre_service' || tab === 'empruntable') && (
+        {(tab === "libre_service" || tab === "empruntable") && (
           <>
             <View style={styles.section}>
               {filteredCurrentInstruments.length > 0 ? (
-                <InfiniteCoverflow items={filteredCurrentInstruments} renderCard={renderInstrumentCardContent} verticalScrollRef={verticalScrollRef} />
+                <InfiniteCoverflow
+                  items={filteredCurrentInstruments}
+                  renderCard={renderInstrumentCardContent}
+                  verticalScrollRef={verticalScrollRef}
+                />
               ) : (
                 <Text style={styles.empty}>Aucun instrument dans cette catégorie.</Text>
               )}
@@ -534,7 +509,11 @@ export default function CatalogScreen() {
             {filteredComingInstruments.length > 0 && (
               <>
                 {!showComing && (
-                  <TouchableOpacity style={styles.comingButton} onPress={() => setShowComing(true)} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.comingButton}
+                    onPress={() => setShowComing(true)}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.comingButtonText}>À VENIR</Text>
                   </TouchableOpacity>
                 )}
@@ -542,7 +521,11 @@ export default function CatalogScreen() {
                 {showComing && (
                   <View style={styles.comingSection}>
                     <Text style={styles.comingTitle}>_À venir</Text>
-                    <InfiniteCoverflow items={filteredComingInstruments} renderCard={renderInstrumentCardContent} verticalScrollRef={verticalScrollRef} />
+                    <InfiniteCoverflow
+                      items={filteredComingInstruments}
+                      renderCard={renderInstrumentCardContent}
+                      verticalScrollRef={verticalScrollRef}
+                    />
 
                     <TouchableOpacity
                       style={styles.comingButton}
@@ -565,60 +548,60 @@ export default function CatalogScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: "#000" },
 
-  header: { backgroundColor: '#000', paddingTop: 4, paddingBottom: 14, zIndex: 10 },
+  header: { backgroundColor: "#000", paddingTop: 4, paddingBottom: 14, zIndex: 10 },
 
   title: {
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    textTransform: 'uppercase',
+    textAlign: "center",
+    fontWeight: "bold",
+    fontStyle: "italic",
+    textTransform: "uppercase",
     fontSize: 26,
-    color: '#fff',
+    color: "#fff",
     paddingHorizontal: 24,
     paddingTop: 8,
     paddingBottom: 18,
     letterSpacing: 1,
   },
 
-  tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 16 },
+  tabs: { flexDirection: "row", gap: 6, paddingHorizontal: 16 },
 
   tab: {
     flex: 1,
     height: 46,
     borderWidth: 1,
-    borderColor: '#666',
+    borderColor: "#666",
     borderRadius: 10,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 5,
   },
 
-  tabActive: { backgroundColor: '#fff', borderColor: '#fff' },
+  tabActive: { backgroundColor: "#fff", borderColor: "#fff" },
 
   tabText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    textTransform: 'uppercase',
+    color: "#fff",
+    fontWeight: "bold",
+    fontStyle: "italic",
+    textTransform: "uppercase",
     fontSize: 11,
     letterSpacing: 0.8,
-    textAlign: 'center',
+    textAlign: "center",
     includeFontPadding: true,
     lineHeight: 18,
   },
 
-  tabTextActive: { color: '#000' },
+  tabTextActive: { color: "#000" },
 
   filterModule: { marginHorizontal: 24, marginTop: 8, marginBottom: 4, paddingBottom: 4 },
 
   filterLabel: {
-    color: '#ff2bd6',
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    textTransform: 'uppercase',
+    color: "#ff2bd6",
+    fontWeight: "bold",
+    fontStyle: "italic",
+    textTransform: "uppercase",
     letterSpacing: 1,
     fontSize: 12,
     marginBottom: 6,
@@ -627,52 +610,68 @@ const styles = StyleSheet.create({
   typeButton: {
     height: 42,
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: "#444",
     borderRadius: 10,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
-  typeButtonActive: { borderColor: '#ff2bd6' },
+  typeButtonActive: { borderColor: "#ff2bd6" },
 
   typeButtonText: {
     flex: 1,
-    color: '#fff',
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    textTransform: 'uppercase',
+    color: "#fff",
+    fontWeight: "bold",
+    fontStyle: "italic",
+    textTransform: "uppercase",
     fontSize: 12,
     letterSpacing: 0.8,
   },
 
-  typeButtonTextActive: { color: '#ff2bd6' },
+  typeButtonTextActive: { color: "#ff2bd6" },
 
-  typeArrow: { color: '#fff', fontSize: 16, marginLeft: 10 },
+  typeArrow: { color: "#fff", fontSize: 16, marginLeft: 10 },
 
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 24 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    padding: 24,
+  },
 
-  modalBox: { backgroundColor: '#000', borderWidth: 1, borderColor: '#fff', borderRadius: 12, padding: 8 },
+  modalBox: {
+    backgroundColor: "#000",
+    borderWidth: 1,
+    borderColor: "#fff",
+    borderRadius: 12,
+    padding: 8,
+  },
 
-  option: { paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#222' },
+  option: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#222",
+  },
 
-  optionText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  optionText: { color: "#fff", fontSize: 15, fontWeight: "600" },
 
-  optionTextActive: { color: '#ff2bd6' },
+  optionTextActive: { color: "#ff2bd6" },
 
   scroll: { flexGrow: 1, paddingTop: 10, paddingBottom: 50, gap: 14 },
 
   section: { marginBottom: 6 },
 
-  comingSection: { marginTop: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#333' },
+  comingSection: { marginTop: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#333" },
 
   comingTitle: {
-    color: '#ff2bd6',
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    textTransform: 'uppercase',
+    color: "#ff2bd6",
+    fontWeight: "bold",
+    fontStyle: "italic",
+    textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 10,
     marginLeft: 24,
@@ -685,94 +684,113 @@ const styles = StyleSheet.create({
 
   stationCardTouchable: {
     borderWidth: 1,
-    borderColor: '#fff',
+    borderColor: "#fff",
     borderRadius: 18,
     padding: 18,
-    alignItems: 'center',
-    backgroundColor: '#000',
+    alignItems: "center",
+    backgroundColor: "#000",
   },
 
   carouselPhotoBox: {
     width: CARD_W - 20,
     height: CARD_W - 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginVertical: 4,
   },
 
-  carouselPhoto: { width: '100%', height: '100%' },
+  carouselPhoto: { width: "100%", height: "100%" },
 
-  stationPackageBlock: { width: '100%', alignItems: 'center' },
+  stationPackageBlock: { width: "100%", alignItems: "center" },
 
   stationName: {
     fontSize: 17,
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    textTransform: 'uppercase',
-    color: '#fff',
+    fontWeight: "bold",
+    fontStyle: "italic",
+    textTransform: "uppercase",
+    color: "#fff",
     letterSpacing: 0.8,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   stationPackageLine: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 11.5,
-    fontStyle: 'italic',
+    fontStyle: "italic",
     lineHeight: 17,
     marginBottom: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
-  stationPackageLineBold: { fontWeight: 'bold' },
+  stationPackageLineBold: { fontWeight: "bold" },
 
-  instrumentBrand: { color: '#ff2bd6', fontSize: 13, fontStyle: 'italic', marginTop: 4, textAlign: 'center' },
+  instrumentBrand: {
+    color: "#ff2bd6",
+    fontSize: 13,
+    fontStyle: "italic",
+    marginTop: 4,
+    textAlign: "center",
+  },
 
-  instrumentMeta: { color: '#fff', fontSize: 12, textAlign: 'center', marginTop: 2 },
+  instrumentMeta: { color: "#fff", fontSize: 12, textAlign: "center", marginTop: 2 },
 
-  instrumentDesc: { color: '#8e8e93', fontSize: 12, fontStyle: 'italic', textAlign: 'center', marginTop: 4, lineHeight: 16 },
+  instrumentDesc: {
+    color: "#8e8e93",
+    fontSize: 12,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 16,
+  },
 
-  photoEmpty: { backgroundColor: '#000', borderWidth: 1, borderColor: '#fff' },
+  photoEmpty: { backgroundColor: "#000", borderWidth: 1, borderColor: "#fff" },
 
-  photoLetter: { color: '#fff', fontSize: 24, fontWeight: 'bold', fontStyle: 'italic' },
+  photoLetter: { color: "#fff", fontSize: 24, fontWeight: "bold", fontStyle: "italic" },
 
-  badges: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  badges: { flexDirection: "row", gap: 8, marginTop: 8 },
 
   badge: {
-    color: '#000',
-    backgroundColor: '#fff',
+    color: "#000",
+    backgroundColor: "#fff",
     fontSize: 11,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    fontWeight: "bold",
+    textTransform: "uppercase",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
 
   comingButton: {
-    alignSelf: 'center',
+    alignSelf: "center",
     borderWidth: 1,
-    borderColor: '#ff2bd6',
+    borderColor: "#ff2bd6",
     borderRadius: 10,
     minWidth: 120,
     height: 42,
     paddingHorizontal: 22,
     marginTop: 14,
     marginBottom: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   comingButtonText: {
-    color: '#ff2bd6',
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    textTransform: 'uppercase',
+    color: "#ff2bd6",
+    fontWeight: "bold",
+    fontStyle: "italic",
+    textTransform: "uppercase",
     fontSize: 12,
     letterSpacing: 1.2,
     lineHeight: 18,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
-  empty: { color: '#8e8e93', fontStyle: 'italic', textAlign: 'center', marginTop: 20, marginBottom: 10 },
+  empty: {
+    color: "#8e8e93",
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 20,
+    marginBottom: 10,
+  },
 });

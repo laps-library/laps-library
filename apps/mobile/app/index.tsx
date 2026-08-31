@@ -1,12 +1,14 @@
-import { useEffect, useRef } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { router } from 'expo-router';
-import { Audio } from 'expo-av';
-import { supabase } from '../lib/supabase';
-import { GIF_TOP, LOGO_GIF, LOGO_H, LOGO_W } from '../components/gifLayout';
+import { useEffect, useRef } from "react";
+import { Image, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { router } from "expo-router";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import { supabase } from "../lib/supabase";
+import { GIF_TOP, LOGO_GIF, LOGO_H, LOGO_W } from "../components/gifLayout";
 
 export default function IndexScreen() {
+  const insets = useSafeAreaInsets();
   const started = useRef(false);
 
   useEffect(() => {
@@ -14,20 +16,21 @@ export default function IndexScreen() {
     started.current = true;
 
     async function go() {
-      let sound: Audio.Sound | null = null;
+      let player: any = null;
       try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const { sound: s } = await Audio.Sound.createAsync(require('../assets/splash.m4a'));
-        sound = s;
-        await s.playAsync();
+        await setAudioModeAsync({ playsInSilentMode: true });
+        player = createAudioPlayer(require("../assets/splash.m4a"));
+        player.play();
       } catch (e) {}
 
       await new Promise((r) => setTimeout(r, 4080));
 
-      try { if (sound) await sound.unloadAsync(); } catch (e) {}
+      try {
+        if (player) player.remove();
+      } catch (e) {}
 
       const { data } = await supabase.auth.getSession();
-      router.replace(data.session ? '/home' : '/login');
+      router.replace(data.session ? "/home" : "/login");
     }
 
     go();
@@ -37,7 +40,7 @@ export default function IndexScreen() {
     <View style={styles.container}>
       <Image
         source={LOGO_GIF}
-        style={{ position: 'absolute', top: GIF_TOP, width: LOGO_W, height: LOGO_H }}
+        style={{ position: "absolute", top: GIF_TOP + insets.top, width: LOGO_W, height: LOGO_H }}
         resizeMode="contain"
       />
       <StatusBar style="light" />
@@ -46,5 +49,5 @@ export default function IndexScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: "#000", alignItems: "center" },
 });

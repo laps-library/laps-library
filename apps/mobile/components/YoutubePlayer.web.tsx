@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface Props {
   height?: number;
@@ -7,8 +7,8 @@ interface Props {
 }
 
 export default function YoutubePlayer({ height = 220, videoId, play = false }: Props) {
-  const src = `https://www.youtube.com/embed/${videoId}${play ? '?autoplay=1' : ''}`;
-  
+  const src = `https://www.youtube.com/embed/${videoId}${play ? "?autoplay=1" : ""}`;
+
   return (
     <iframe
       width="100%"

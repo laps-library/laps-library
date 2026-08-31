@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { View } from 'react-native';
-import { registerObstacle, unregisterObstacle } from './BounceOverlay';
+import { useEffect, useRef } from "react";
+import { View } from "react-native";
+import { registerObstacle, unregisterObstacle } from "./BounceOverlay";
 
 export default function Bounceable({ children, style, inset = 0 }: any) {
   const ref = useRef<View>(null);

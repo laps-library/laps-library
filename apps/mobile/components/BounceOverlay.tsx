@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
-import { pickNote, playBounceNote, playSpawnNote } from './ballAudio';
+import React, { useEffect, useRef, useState } from "react";
+import { Dimensions, StyleSheet, View } from "react-native";
+import { pickNote, playBounceNote, playSpawnNote } from "./ballAudio";
 
 const BALL_SIZE = 26;
 const BALL_LIFE = 6000;
@@ -21,7 +21,7 @@ type Ball = {
   bounced?: boolean;
   collided?: boolean;
   squash: number;
-  squashAxis: 'x' | 'y';
+  squashAxis: "x" | "y";
   squashTime: number;
   scaleX: number;
   scaleY: number;
@@ -71,14 +71,15 @@ function makeBall(x: number, y: number): Ball {
   const speed = SPEED_MIN + Math.random() * (SPEED_MAX - SPEED_MIN);
   return {
     id: Date.now() + Math.random(),
-    x, y,
+    x,
+    y,
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
     born: Date.now(),
     note: pickNote(),
     lastSound: 0,
     squash: 0,
-    squashAxis: 'y',
+    squashAxis: "y",
     squashTime: 0,
     scaleX: 1,
     scaleY: 1,
@@ -108,7 +109,10 @@ export default function BounceOverlay() {
 
   useEffect(() => {
     const unsub = onBallInteractionChange((on) => {
-      if (!on) { ballsRef.current = []; setBalls([]); }
+      if (!on) {
+        ballsRef.current = [];
+        setBalls([]);
+      }
     });
     return unsub;
   }, []);
@@ -134,7 +138,7 @@ export default function BounceOverlay() {
       if (!mounted) return;
       if (ballsRef.current.length === 0) return;
       try {
-        const { width, height } = Dimensions.get('window');
+        const { width, height } = Dimensions.get("window");
         const now = Date.now();
         const obstacles = Array.from(S.obstacleMap.values()) as Rect[];
 
@@ -142,16 +146,38 @@ export default function BounceOverlay() {
           .filter((b) => now - b.born < BALL_LIFE)
           .map((ball) => {
             let { x, y, vx, vy } = ball;
-            const px = x, py = y;
+            const px = x,
+              py = y;
             let bounced = false;
-            let bounceAxis: 'x' | 'y' | null = null;
+            let bounceAxis: "x" | "y" | null = null;
 
-            x += vx; y += vy;
+            x += vx;
+            y += vy;
 
-            if (x <= 0) { x = 0; vx = Math.abs(vx); bounced = true; bounceAxis = 'x'; }
-            if (x >= width - BALL_SIZE) { x = width - BALL_SIZE; vx = -Math.abs(vx); bounced = true; bounceAxis = 'x'; }
-            if (y <= 0) { y = 0; vy = Math.abs(vy); bounced = true; bounceAxis = 'y'; }
-            if (y >= height - BALL_SIZE) { y = height - BALL_SIZE; vy = -Math.abs(vy); bounced = true; bounceAxis = 'y'; }
+            if (x <= 0) {
+              x = 0;
+              vx = Math.abs(vx);
+              bounced = true;
+              bounceAxis = "x";
+            }
+            if (x >= width - BALL_SIZE) {
+              x = width - BALL_SIZE;
+              vx = -Math.abs(vx);
+              bounced = true;
+              bounceAxis = "x";
+            }
+            if (y <= 0) {
+              y = 0;
+              vy = Math.abs(vy);
+              bounced = true;
+              bounceAxis = "y";
+            }
+            if (y >= height - BALL_SIZE) {
+              y = height - BALL_SIZE;
+              vy = -Math.abs(vy);
+              bounced = true;
+              bounceAxis = "y";
+            }
 
             const nb: Ball = { ...ball, x, y, vx, vy };
 
@@ -161,10 +187,19 @@ export default function BounceOverlay() {
               const fromRight = px >= obstacle.x + obstacle.w;
               const fromTop = py + BALL_SIZE <= obstacle.y;
               const fromBottom = py >= obstacle.y + obstacle.h;
-              if (fromLeft || fromRight) { vx = -vx; bounceAxis = 'x'; }
-              else if (fromTop || fromBottom) { vy = -vy; bounceAxis = 'y'; }
-              else { vx = -vx; vy = -vy; bounceAxis = 'x'; }
-              x += vx; y += vy;
+              if (fromLeft || fromRight) {
+                vx = -vx;
+                bounceAxis = "x";
+              } else if (fromTop || fromBottom) {
+                vy = -vy;
+                bounceAxis = "y";
+              } else {
+                vx = -vx;
+                vy = -vy;
+                bounceAxis = "x";
+              }
+              x += vx;
+              y += vy;
               bounced = true;
               break;
             }
@@ -173,7 +208,9 @@ export default function BounceOverlay() {
             let squashAxis = ball.squashAxis;
             let squashTime = ball.squashTime;
             if (bounced && bounceAxis) {
-              squash = 1; squashAxis = bounceAxis; squashTime = now;
+              squash = 1;
+              squashAxis = bounceAxis;
+              squashTime = now;
             }
 
             return { ...nb, x, y, vx, vy, bounced, squash, squashAxis, squashTime };
@@ -181,36 +218,53 @@ export default function BounceOverlay() {
 
         for (let i = 0; i < next.length; i++) {
           for (let j = i + 1; j < next.length; j++) {
-            const a = next[i], b = next[j];
-            const dx = (b.x + BALL_SIZE / 2) - (a.x + BALL_SIZE / 2);
-            const dy = (b.y + BALL_SIZE / 2) - (a.y + BALL_SIZE / 2);
+            const a = next[i],
+              b = next[j];
+            const dx = b.x + BALL_SIZE / 2 - (a.x + BALL_SIZE / 2);
+            const dy = b.y + BALL_SIZE / 2 - (a.y + BALL_SIZE / 2);
             const dist = Math.hypot(dx, dy);
             if (dist < BALL_SIZE && dist > 0) {
-              const nx = dx / dist, ny = dy / dist;
+              const nx = dx / dist,
+                ny = dy / dist;
               const dvn = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
               if (dvn > 0) {
-                a.vx -= dvn * nx; a.vy -= dvn * ny;
-                b.vx += dvn * nx; b.vy += dvn * ny;
+                a.vx -= dvn * nx;
+                a.vy -= dvn * ny;
+                b.vx += dvn * nx;
+                b.vy += dvn * ny;
               }
               const overlap = BALL_SIZE - dist;
-              a.x -= (overlap / 2) * nx; a.y -= (overlap / 2) * ny;
-              b.x += (overlap / 2) * nx; b.y += (overlap / 2) * ny;
-              const axis: 'x' | 'y' = Math.abs(nx) > Math.abs(ny) ? 'x' : 'y';
-              a.squash = 1; a.squashAxis = axis; a.squashTime = now;
-              b.squash = 1; b.squashAxis = axis; b.squashTime = now;
-              a.collided = true; b.collided = true;
+              a.x -= (overlap / 2) * nx;
+              a.y -= (overlap / 2) * ny;
+              b.x += (overlap / 2) * nx;
+              b.y += (overlap / 2) * ny;
+              const axis: "x" | "y" = Math.abs(nx) > Math.abs(ny) ? "x" : "y";
+              a.squash = 1;
+              a.squashAxis = axis;
+              a.squashTime = now;
+              b.squash = 1;
+              b.squashAxis = axis;
+              b.squashTime = now;
+              a.collided = true;
+              b.collided = true;
             }
           }
         }
 
         next = next.map((ball) => {
-          let scaleX = 1, scaleY = 1;
+          let scaleX = 1,
+            scaleY = 1;
           const elapsed = now - ball.squashTime;
           if (ball.squash > 0 && elapsed < SQUASH_DURATION) {
             const decay = 1 - elapsed / SQUASH_DURATION;
             const amt = ball.squash * decay * 0.35;
-            if (ball.squashAxis === 'y') { scaleY = 1 - amt; scaleX = 1 + amt; }
-            else { scaleX = 1 - amt; scaleY = 1 + amt; }
+            if (ball.squashAxis === "y") {
+              scaleY = 1 - amt;
+              scaleX = 1 + amt;
+            } else {
+              scaleX = 1 - amt;
+              scaleY = 1 + amt;
+            }
           }
           if (ball.bounced && now - ball.lastSound > 250) {
             ball.lastSound = now;
@@ -229,7 +283,10 @@ export default function BounceOverlay() {
     };
 
     const iv = setInterval(tick, 16);
-    return () => { mounted = false; clearInterval(iv); };
+    return () => {
+      mounted = false;
+      clearInterval(iv);
+    };
   }, []);
 
   if (balls.length === 0) return null;
@@ -242,8 +299,8 @@ export default function BounceOverlay() {
           style={[
             styles.ball,
             {
-              left: clamp(ball.x, 0, Dimensions.get('window').width - BALL_SIZE),
-              top: clamp(ball.y, 0, Dimensions.get('window').height - BALL_SIZE),
+              left: clamp(ball.x, 0, Dimensions.get("window").width - BALL_SIZE),
+              top: clamp(ball.y, 0, Dimensions.get("window").height - BALL_SIZE),
               transform: [{ scaleX: ball.scaleX }, { scaleY: ball.scaleY }],
             },
           ]}
@@ -255,14 +312,14 @@ export default function BounceOverlay() {
 
 const styles = StyleSheet.create({
   ball: {
-    position: 'absolute',
+    position: "absolute",
     width: BALL_SIZE,
     height: BALL_SIZE,
     borderRadius: BALL_SIZE / 2,
-    backgroundColor: '#000000',
+    backgroundColor: "#000000",
     borderWidth: 2,
-    borderColor: '#ffffff',
-    shadowColor: '#ffffff',
+    borderColor: "#ffffff",
+    shadowColor: "#ffffff",
     shadowOpacity: 0.6,
     shadowRadius: 8,
     elevation: 6,
