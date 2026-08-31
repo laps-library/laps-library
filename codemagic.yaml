@@ -1,0 +1,61 @@
+workflows:
+  ios-production:
+    name: LAPS iOS Production
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: laps-asc-key
+    environment:
+      node: 22
+      vars:
+        BUNDLE_ID: "com.laps.app"
+    cache:
+      cache_paths:
+        - $HOME/Library/Caches/CocoaPods
+    scripts:
+      - name: Find project root
+        script: |
+          echo "=== Current directory ==="
+          pwd
+          echo "=== Files at root ==="
+          ls -la
+          if [ -d "apps/mobile" ]; then
+            echo "OK apps/mobile found"
+          else
+            echo "ERROR apps/mobile NOT found"
+            exit 1
+          fi
+      - name: Install dependencies
+        script: |
+          cd apps/mobile
+          npm install
+      - name: Expo prebuild
+        script: |
+          cd apps/mobile
+          npx expo prebuild --platform ios --clean --non-interactive
+      - name: Install CocoaPods
+        script: |
+          cd apps/mobile/ios
+          pod install
+      - name: Set up signing
+        script: |
+          cd apps/mobile/ios
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd apps/mobile/ios
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" || echo 21)
+          agvtool new-version -all $((LATEST + 1))
+      - name: Build IPA
+        script: |
+          cd apps/mobile/ios
+          xcode-project build-ipa --workspace LAPS.xcworkspace --scheme LAPS
+    artifacts:
+      - apps/mobile/ios/build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
