@@ -1,35 +1,24 @@
-# Dépendances
-node_modules/
-
-# Expo / builds
-.expo/
+# Builds
+*.aab
+*.apk
+*.ipa
+apps/mobile/android/app/build/
+apps/mobile/ios/build/
+build/
 dist/
-web-build/
-ios/
-android/
 
-# Secrets / certificats
-.env
-.env.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-*.pem
+# Expo
+.expo/
+.expo-shared/
 
-# Supabase CLI
-supabase/.temp/
-
-# Configs IDE (personnelles)
-.claude/
-.vscode/
-.idea/
+# Node
+node_modules/
+npm-debug.log*
 
 # macOS
 .DS_Store
 
-# Logs
-*.log
-npm-debug.*
-yarn-*.log
+# IDE
+.idea/
+.vscode/
+*.swp
