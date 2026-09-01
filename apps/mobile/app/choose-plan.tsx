@@ -11,6 +11,7 @@ import BackButton from "../components/BackButton";
 
 const rank = (n: string) => (/newbie/i.test(n) ? 0 : /pro/i.test(n) ? 1 : /nerd/i.test(n) ? 2 : 0);
 const isFreePlan = (p: any) => p.price_cents === 0 || /newbie/i.test(p.name);
+const isFounderPlan = (p: any) => p.code === "founding_member" || /fondateur/i.test(p.name);
 
 export default function ChoosePlanScreen() {
   const [plans, setPlans] = useState<any[]>([]);
@@ -47,8 +48,8 @@ export default function ChoosePlanScreen() {
   const currentRank = current ? rank(current.name) : -1;
   const upgrades =
     currentRank === -1
-      ? plans.filter((p) => !isFreePlan(p))
-      : plans.filter((p) => rank(p.name) > currentRank && !isFreePlan(p));
+      ? plans.filter((p) => !isFreePlan(p) && !isFounderPlan(p))
+      : plans.filter((p) => rank(p.name) > currentRank && !isFreePlan(p) && !isFounderPlan(p));
   const canCancel = !!current && /nerd/i.test(current.name);
 
   async function choose(p: any) {
@@ -103,29 +104,53 @@ export default function ChoosePlanScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.title}>_Gérer ma formule</Text>
         <Text style={styles.hint}>Formule actuelle : {current?.name ?? "aucune"}</Text>
+        <Text style={styles.info}>Les abonnements annuels seront effectifs à partir de fin 2026 lors de l'ouverture.</Text>
 
-        {upgrades.map((p) => (
-          <View key={p.id} style={styles.card}>
-            <Text style={styles.name}>{p.name}</Text>
-            <Text style={styles.price}>
-              {p.price_cents != null && p.price_cents > 0
-                ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? "an" : "mois"}`
-                : "Gratuit"}
-            </Text>
-            {p.features ? <Text style={styles.features}>{p.features}</Text> : null}
-            {/pro/i.test(p.name) && (
-              <Text style={styles.features}>
-                _Cartes créneaux PRO : 5 créneaux 62,50 € (12,50 €/créneau) · 10 créneaux 100 € (10
-                €/créneau), créneaux de 10 h à 15 h.
-              </Text>
-            )}
-            <AppButton
-              label={loading === p.id ? "..." : "Upgrader"}
-              fontSize={14}
-              onPress={() => choose(p)}
-            />
-          </View>
-        ))}
+        {upgrades.map((p) => {
+          const isFounder = isFounderPlan(p);
+          return (
+            <View key={p.id} style={[styles.card, isFounder && styles.cardFounder]}>
+              {isFounder && <Text style={styles.founderBadgeTop}>⭐ OFFRE LIMITÉE ⭐</Text>}
+              <View style={styles.headerRow}>
+                <Text style={styles.name}>{p.name}</Text>
+                {isFounder && <Text style={styles.badge}>⏰ JUSQU'AU 31/10</Text>}
+              </View>
+              
+              {isFounder ? (
+                <View style={styles.founderPriceContainer}>
+                  <Text style={styles.priceLabel}>Tarif exclusif</Text>
+                  <Text style={styles.priceBold}>
+                    {p.price_cents != null && p.price_cents > 0
+                      ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? "an" : "mois"}`
+                      : "Gratuit"}
+                  </Text>
+                  <Text style={styles.deadline}>Offre limitée - Expire le 31 octobre 2026</Text>
+                </View>
+              ) : (
+                <Text style={styles.price}>
+                  {p.price_cents != null && p.price_cents > 0
+                    ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? "an" : "mois"}`
+                    : "Gratuit"}
+                </Text>
+              )}
+              
+              {p.features ? <Text style={styles.features}>{p.features}</Text> : null}
+
+              {/pro/i.test(p.name) && (
+                <Text style={styles.features}>
+                  _Cartes créneaux PRO : 5 créneaux 62,50 € (12,50 €/créneau) · 10 créneaux 100 € (10
+                  €/créneau), créneaux de 10 h à 15 h.
+                </Text>
+              )}
+              <AppButton
+                label={/pro|nerd/i.test(p.name) ? "Bientôt disponible" : (loading === p.id ? "..." : "Upgrader")}
+                fontSize={14}
+                onPress={/pro|nerd/i.test(p.name) ? (() => {}) : (() => choose(p))}
+                style={/pro|nerd/i.test(p.name) ? styles.buttonDisabled : undefined}
+              />
+            </View>
+          );
+        })}
         {upgrades.length === 0 && (
           <Text style={styles.hint}>_Aucun upgrade disponible au-dessus de ta formule.</Text>
         )}
@@ -168,6 +193,16 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   hint: { color: "#8e8e93", fontStyle: "italic", fontSize: 13, lineHeight: 18 },
+  info: {
+    color: "#8e8e93",
+    fontStyle: "italic",
+    fontSize: 12,
+    lineHeight: 16,
+    paddingBottom: 12,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
   card: {
     borderWidth: 1,
     borderColor: "#ff2bd6",
@@ -176,6 +211,17 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: "#000",
   },
+  cardFounder: {
+    borderColor: "#ffd700",
+    backgroundColor: "rgba(255, 215, 0, 0.05)",
+    borderWidth: 2,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+  },
   name: {
     fontSize: 17,
     fontWeight: "bold",
@@ -183,8 +229,65 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: "#fff",
     letterSpacing: 1,
+    flex: 1,
+  },
+  founderBadgeTop: {
+    backgroundColor: "#ffd700",
+    color: "#000",
+    fontSize: 12,
+    fontWeight: "900",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    textAlign: "center",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  badge: {
+    backgroundColor: "#ffd700",
+    color: "#000",
+    fontSize: 11,
+    fontWeight: "600",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    textAlign: "center",
+    flexShrink: 1,
   },
   price: { color: "#8e8e93", fontSize: 14 },
+  founderPriceContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#ffd700",
+    gap: 4,
+  },
+  priceLabel: {
+    color: "#ffd700",
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  priceBold: {
+    color: "#ffd700",
+    fontSize: 20,
+    fontWeight: "900",
+    fontStyle: "italic",
+    letterSpacing: 0.5,
+  },
+  deadline: {
+    color: "#ffd700",
+    fontSize: 11,
+    fontWeight: "600",
+    fontStyle: "italic",
+    marginTop: 2,
+  },
   features: { color: "#8e8e93", fontSize: 12, lineHeight: 17 },
+
+  buttonDisabled: { opacity: 0.5 },
   msg: { color: "#fff", textAlign: "center", marginTop: 8 },
 });

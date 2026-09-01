@@ -678,6 +678,7 @@ export default function ReserveScreen() {
 
     const isPro =
       subscriptionPlan.code === "normal" || subscriptionPlan.name.toUpperCase() === "PRO";
+    const isDisabled = isPro || subscriptionPlan.name.toUpperCase() === "NERD";
 
     return (
       <TouchableOpacity
@@ -686,9 +687,11 @@ export default function ReserveScreen() {
           styles.planCard,
           highlighted && styles.planCardHighlighted,
           isSelected && styles.planCardSelected,
+          isDisabled && styles.planCardDisabled,
         ]}
-        onPress={() => setSelectedSubscriptionPlan(isSelected ? null : subscriptionPlan)}
-        activeOpacity={0.85}
+        onPress={isDisabled ? (() => {}) : (() => setSelectedSubscriptionPlan(isSelected ? null : subscriptionPlan))}
+        activeOpacity={isDisabled ? 1 : 0.85}
+        disabled={isDisabled}
       >
         <View style={styles.planCardHeader}>
           <View style={styles.planCardTitleBox}>
@@ -697,6 +700,7 @@ export default function ReserveScreen() {
             <Text style={styles.planCardSubtitle}>
               {isPro ? "L'accès complet à LAPS" : "La formule illimitée"}
             </Text>
+            {isDisabled && <Text style={styles.comingSoon}>Bientôt disponible</Text>}
           </View>
 
           <View style={styles.planPriceBox}>

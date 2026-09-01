@@ -17,6 +17,9 @@ import { Link, router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
 
+const isFounder = (p: any) => p.code === "founding_member" || /fondateur/i.test(p.name);
+const isLocked = (p: any) => /pro|nerd/i.test(p.name);
+
 export default function RegisterScreen() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -32,7 +35,7 @@ export default function RegisterScreen() {
     async function load() {
       const { data } = await supabase.from("plans").select("*").order("sort_order");
       setPlans(data ?? []);
-      const free = (data ?? []).find((p) => p.price_cents === 0 || /newbie/i.test(p.name));
+      const free = (data ?? []).find((p) => (p.price_cents === 0 || /newbie/i.test(p.name)) && !isLocked(p));
       if (free) setPlanId(free.id);
     }
     load();
@@ -54,9 +57,17 @@ export default function RegisterScreen() {
     const { data: sess } = await supabase.auth.getSession();
     const uid = sess.session?.user.id;
     if (uid && planId) {
-      await supabase.from("profiles").update({ plan_id: planId }).eq("id", uid);
       const chosen = plans.find((p) => p.id === planId);
-      const isFree = chosen && (chosen.price_cents === 0 || /newbie/i.test(chosen.name));
+      if (chosen && isLocked(chosen)) {
+        const free = plans.find((p) => (p.price_cents === 0 || /newbie/i.test(p.name)) && !isLocked(p));
+        if (free) setPlanId(free.id);
+        setLoading(false);
+        setError("Cette formule n'est pas encore disponible. Merci de choisir NEWBIE pour le moment.");
+        return;
+      }
+      await supabase.from("profiles").update({ plan_id: planId }).eq("id", uid);
+      const chosen2 = plans.find((p) => p.id === planId);
+      const isFree = chosen2 && (chosen2.price_cents === 0 || /newbie/i.test(chosen2.name));
       if (isFree) {
         setLoading(false);
         router.replace("/home");
@@ -143,21 +154,36 @@ export default function RegisterScreen() {
         />
 
         <Text style={styles.planTitle}>_Ta formule</Text>
-        {plans.map((p) => (
-          <TouchableOpacity
-            key={p.id}
-            style={[styles.planCard, planId === p.id && styles.planCardSelected]}
-            onPress={() => setPlanId(p.id)}
-          >
-            <Text style={styles.planName}>{p.name}</Text>
-            <Text style={styles.planPrice}>
-              {p.price_cents != null && p.price_cents > 0
-                ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? "an" : "mois"}`
-                : "Gratuit"}
-            </Text>
-            {p.features ? <Text style={styles.planFeatures}>{p.features}</Text> : null}
-          </TouchableOpacity>
-        ))}
+        {plans.filter((p) => !isFounder(p)).map((p) => {
+          const locked = isLocked(p);
+          return (
+            <TouchableOpacity
+              key={p.id}
+              style={[
+                styles.planCard,
+                planId === p.id && styles.planCardSelected,
+                locked && styles.planCardDisabled,
+              ]}
+              onPress={() => {
+                if (locked) return;
+                setPlanId(p.id);
+              }}
+              activeOpacity={locked ? 1 : 0.85}
+              disabled={locked}
+            >
+              <View style={styles.planHeaderRow}>
+                <Text style={styles.planName}>{p.name}</Text>
+                {locked && <Text style={styles.comingSoon}>Bientôt disponible</Text>}
+              </View>
+              <Text style={styles.planPrice}>
+                {p.price_cents != null && p.price_cents > 0
+                  ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? "an" : "mois"}`
+                  : "Gratuit"}
+              </Text>
+              {p.features ? <Text style={styles.planFeatures}>{p.features}</Text> : null}
+            </TouchableOpacity>
+          );
+        })}
 
         {error && <Text style={styles.error}>{error}</Text>}
 
@@ -216,6 +242,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   planCardSelected: { borderWidth: 2, borderColor: "#ff2bd6", backgroundColor: "#000" },
+  planCardDisabled: { opacity: 0.5 },
+  planHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  comingSoon: {
+    color: "#ff2bd6",
+    fontSize: 10,
+    fontStyle: "italic",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    flexShrink: 1,
+  },
   planName: {
     fontSize: 16,
     fontWeight: "bold",
