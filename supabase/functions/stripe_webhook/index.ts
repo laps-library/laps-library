@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
         await supabase.from('reservations').update({ status: 'confirmed', payment_status: 'paid', paid_at: now }).eq('id', reservation_id)
         try { await fetch('https://jgibgmctgbwnphvjkkke.functions.supabase.co/booking_email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reservation_id }) }) } catch (e) {}
       } else if (kind === 'loan' && loan_id) {
-        await supabase.from('loans').update({ payment_status: 'paid', paid_at: now }).eq('id', loan_id)
+        await supabase.from('loans').update({ status: 'active', payment_status: 'paid', paid_at: now }).eq('id', loan_id)
       } else if (kind === 'slot_pack' && pack_id) {
         await supabase.from('slot_packs').update({ payment_status: 'paid', paid_at: now }).eq('id', pack_id)
       } else if (kind === 'privatization' && privatization_id) {

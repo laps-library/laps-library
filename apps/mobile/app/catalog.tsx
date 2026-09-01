@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { LOCAL_PHOTOS } from "../assets/instruments/manifest";
 
@@ -24,6 +25,7 @@ import { photoSource, stationPhotoSource, isAccessory } from "../lib/instrumentU
 
 const SCREEN_W = Dimensions.get("window").width;
 const CARD_W = Math.round(Math.min(SCREEN_W * 0.66, 300));
+const CARD_H = 420;
 const CARD_MARGIN = 18;
 const SNAP = CARD_W + CARD_MARGIN;
 const SIDE_PAD = (SCREEN_W - CARD_W) / 2;
@@ -68,16 +70,47 @@ const TYPES = [
  * Carrousel "manège" : liste triplée pour permettre un défilement infini,
  * avec un saut invisible (sans animation) quand on approche des bords.
  */
+function ScrollIndicator({ scrollRef }: { scrollRef: React.RefObject<any> }) {
+  const bounce = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounce, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(bounce, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+  const translateY = bounce.interpolate({ inputRange: [0, 1], outputRange: [0, 6] });
+  return (
+    <View style={styles.scrollHintWrap}>
+      <LinearGradient
+        colors={["transparent", "#000"]}
+        style={styles.scrollHintFade}
+        pointerEvents="none"
+      />
+      <Animated.Text style={[styles.scrollHintChevron, { transform: [{ translateY }] }]}>
+        ↓
+      </Animated.Text>
+      <Text style={styles.scrollHintText}>Faire défiler</Text>
+    </View>
+  );
+}
+
 function InfiniteCoverflow({
   items,
   renderCard,
   verticalScrollRef,
+  innerRef,
 }: {
   items: Row[];
   renderCard: (item: Row, shouldLoadImage: boolean) => React.ReactNode;
   verticalScrollRef: React.RefObject<any>;
+  innerRef?: React.MutableRefObject<any>;
 }) {
-  const scrollRef = useRef<any>(null);
+  const localRef = useRef<any>(null);
+  const scrollRef = innerRef ?? localRef;
   const scrollX = useRef(new Animated.Value(0)).current;
   const canLoop = items.length > 1;
   const loopedItems = canLoop ? [...items, ...items, ...items] : items;
@@ -444,14 +477,14 @@ export default function CatalogScreen() {
           <>
             <View style={styles.section}>
               {currentStations.length > 0 ? (
-                <>
-                  <Text style={styles.comingTitle}>_Disponible</Text>
+                <View>
                   <InfiniteCoverflow
                     items={currentStations}
                     renderCard={renderStationCardContent}
                     verticalScrollRef={verticalScrollRef}
                   />
-                </>
+                  <ScrollIndicator scrollRef={null as any} />
+                </View>
               ) : (
                 <Text style={styles.empty}>Aucun poste premium disponible.</Text>
               )}
@@ -477,6 +510,7 @@ export default function CatalogScreen() {
                       renderCard={renderStationCardContent}
                       verticalScrollRef={verticalScrollRef}
                     />
+                    <ScrollIndicator scrollRef={null as any} />
 
                     <TouchableOpacity
                       style={styles.comingButton}
@@ -496,11 +530,14 @@ export default function CatalogScreen() {
           <>
             <View style={styles.section}>
               {filteredCurrentInstruments.length > 0 ? (
-                <InfiniteCoverflow
-                  items={filteredCurrentInstruments}
-                  renderCard={renderInstrumentCardContent}
-                  verticalScrollRef={verticalScrollRef}
-                />
+                <View>
+                  <InfiniteCoverflow
+                    items={filteredCurrentInstruments}
+                    renderCard={renderInstrumentCardContent}
+                    verticalScrollRef={verticalScrollRef}
+                  />
+                  <ScrollIndicator scrollRef={null as any} />
+                </View>
               ) : (
                 <Text style={styles.empty}>Aucun instrument dans cette catégorie.</Text>
               )}
@@ -526,6 +563,7 @@ export default function CatalogScreen() {
                       renderCard={renderInstrumentCardContent}
                       verticalScrollRef={verticalScrollRef}
                     />
+                    <ScrollIndicator scrollRef={null as any} />
 
                     <TouchableOpacity
                       style={styles.comingButton}
@@ -683,6 +721,8 @@ const styles = StyleSheet.create({
   carouselCardWrap: { width: CARD_W },
 
   stationCardTouchable: {
+    width: CARD_W,
+    height: CARD_H,
     borderWidth: 1,
     borderColor: "#fff",
     borderRadius: 18,
@@ -692,8 +732,8 @@ const styles = StyleSheet.create({
   },
 
   carouselPhotoBox: {
-    width: CARD_W - 20,
-    height: CARD_W - 20,
+    width: CARD_W - 36,
+    height: CARD_W - 70,
     alignItems: "center",
     justifyContent: "center",
     marginVertical: 4,
@@ -736,11 +776,11 @@ const styles = StyleSheet.create({
 
   instrumentDesc: {
     color: "#8e8e93",
-    fontSize: 12,
+    fontSize: 11,
     fontStyle: "italic",
     textAlign: "center",
     marginTop: 4,
-    lineHeight: 16,
+    lineHeight: 14,
   },
 
   photoEmpty: { backgroundColor: "#000", borderWidth: 1, borderColor: "#fff" },
@@ -784,6 +824,23 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     lineHeight: 18,
     textAlign: "center",
+  },
+
+  scrollHintWrap: { height: 50, alignItems: "center", marginTop: 14, position: "relative" },
+  scrollHintFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: -30,
+    height: 40,
+  },
+  scrollHintChevron: { color: "#ff2bd6", fontSize: 22, fontWeight: "bold", lineHeight: 24 },
+  scrollHintText: {
+    color: "#8e8e93",
+    fontSize: 10,
+    fontStyle: "italic",
+    letterSpacing: 1,
+    marginTop: 2,
   },
 
   empty: {

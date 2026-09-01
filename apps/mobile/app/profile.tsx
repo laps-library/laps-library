@@ -28,6 +28,7 @@ export default function ProfileScreen() {
   const [pseudo, setPseudo] = useState("");
   const [plan, setPlan] = useState<any>(null);
   const [reservations, setReservations] = useState<any[]>([]);
+  const [privatizations, setPrivatizations] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -46,7 +47,7 @@ export default function ProfileScreen() {
     const { data: res } = await supabase
       .from("reservations")
       .select(
-        "id, reservation_date, start_time, status, workstations(name), time_slots(name), instrument_models(name)",
+        "id, reservation_date, start_time, status, amount_cents, workstations(name), time_slots(name), instrument_models(name)",
       )
       .eq("user_id", uid)
       .order("reservation_date")
@@ -99,6 +100,90 @@ export default function ProfileScreen() {
     setNotifications((notifs) => notifs.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
   }
 
+  useEffect(() => {
+    (async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess.session?.user.id;
+      if (!uid) return;
+      const { data } = await supabase
+        .from("privatizations")
+        .select("id, privat_date, amount_cents, status")
+        .eq("user_id", uid)
+        .order("privat_date");
+      setPrivatizations(data ?? []);
+    })();
+  }, []);
+
+  async function payLoan(l: any) {
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user.id;
+    const redirectUrl = ExpoLinking.createURL("payment-success");
+
+    const { data, error } = await supabase.functions.invoke("create_payment", {
+      body: {
+        user_id: uid,
+        amount_cents: l.amount_cents ?? 0,
+        label: "Emprunt instrument",
+        kind: "loan",
+        loan_id: l.id,
+        redirect_url: redirectUrl,
+      },
+    });
+
+    if (error || !(data as any)?.url) {
+      Alert.alert("Erreur", "Impossible de lancer le paiement.");
+      return;
+    }
+
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem("laps_pending_payment", "1");
+    Linking.openURL((data as any).url);
+  }
+
+  async function cancelLoan(l: any) {
+    const { error } = await supabase.rpc("cancel_loan", { p_loan_id: l.id });
+    if (error) {
+      Alert.alert("Erreur", error.message);
+      return;
+    }
+    setLoans((prev) => prev.filter((x) => x.id !== l.id));
+  }
+
+  async function payPrivatization(pz: any) {
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user.id;
+    const redirectUrl = ExpoLinking.createURL("payment-success");
+
+    const { data, error } = await supabase.functions.invoke("create_payment", {
+      body: {
+        user_id: uid,
+        amount_cents: pz.amount_cents ?? 44000,
+        label: "Privatisation LAPS Library",
+        kind: "privatization",
+        privatization_id: pz.id,
+        redirect_url: redirectUrl,
+      },
+    });
+
+    if (error || !(data as any)?.url) {
+      Alert.alert("Erreur", "Impossible de lancer le paiement.");
+      return;
+    }
+
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem("laps_pending_payment", "1");
+    Linking.openURL((data as any).url);
+  }
+
+  async function cancelPrivatization(pz: any) {
+    const { error } = await supabase.rpc("cancel_privatization", { p_privatization_id: pz.id });
+    if (error) {
+      Alert.alert("Erreur", error.message);
+      return;
+    }
+    setPrivatizations((prev) => prev.filter((x) => x.id !== pz.id));
+  }
+
   async function payLoan(loanId: string) {
     const { data: sess } = await supabase.auth.getSession();
     const uid = sess.session?.user.id;
@@ -123,6 +208,41 @@ export default function ProfileScreen() {
     const AsyncStorage = require("@react-native-async-storage/async-storage").default;
     await AsyncStorage.setItem("laps_pending_payment", "loan");
     Linking.openURL((data as any).url);
+  }
+
+  async function payReservation(r: any) {
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user.id;
+    const redirectUrl = ExpoLinking.createURL("payment-success");
+
+    const { data, error } = await supabase.functions.invoke("create_payment", {
+      body: {
+        user_id: uid,
+        amount_cents: r.amount_cents ?? 0,
+        label: "Créneau LAPS Library",
+        kind: "reservation",
+        reservation_id: r.id,
+        redirect_url: redirectUrl,
+      },
+    });
+
+    if (error || !(data as any)?.url) {
+      Alert.alert("Erreur", "Impossible de lancer le paiement.");
+      return;
+    }
+
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    await AsyncStorage.setItem("laps_pending_payment", "1");
+    Linking.openURL((data as any).url);
+  }
+
+  async function cancelReservation(r: any) {
+    const { error } = await supabase.rpc("cancel_reservation", { p_reservation_id: r.id });
+    if (error) {
+      Alert.alert("Erreur", error.message);
+      return;
+    }
+    setReservations((prev) => prev.filter((x) => x.id !== r.id));
   }
 
   async function markAllAsRead() {
@@ -405,19 +525,65 @@ export default function ProfileScreen() {
             <Text style={styles.empty}>Aucune réservation à venir.</Text>
           )}
           {reservations.map((r) => (
-            <Text key={r.id} style={styles.line}>
-              _{" "}
-              {new Date(r.reservation_date).toLocaleDateString("fr-FR", {
-                weekday: "short",
-                day: "2-digit",
-                month: "short",
-              })}{" "}
-              · {r.time_slots?.name} ·{" "}
-              {r.instrument_models?.name
-                ? r.instrument_models.name.replace("Poste Premium — ", "")
-                : r.workstations?.name}
-            </Text>
+            <View key={r.id} style={styles.resCard}>
+              <Text style={styles.line}>
+                _{" "}
+                {new Date(r.reservation_date).toLocaleDateString("fr-FR", {
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "short",
+                })}{" "}
+                · {r.time_slots?.name} ·{" "}
+                {r.instrument_models?.name
+                  ? r.instrument_models.name.replace("Poste Premium — ", "")
+                  : r.workstations?.name}
+              </Text>
+              {r.status === "pending_payment" && (
+                <>
+                  <Text style={styles.resStatus}>_En attente de paiement (10 min)</Text>
+                  <View style={styles.resActions}>
+                    <TouchableOpacity style={styles.resPayBtn} onPress={() => payReservation(r)}>
+                      <Text style={styles.resPayText}>PAYER</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.resCancelBtn} onPress={() => cancelReservation(r)}>
+                      <Text style={styles.resCancelText}>ANNULER</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
           ))}
+          <Text style={styles.section}>_Mes privatisations</Text>
+          {privatizations.length === 0 && (
+            <Text style={styles.empty}>Aucune privatisation.</Text>
+          )}
+          {privatizations.map((pz) => (
+            <View key={pz.id} style={styles.resCard}>
+              <Text style={styles.line}>
+                _{" "}
+                {new Date(pz.privat_date + "T12:00:00").toLocaleDateString("fr-FR", {
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "short",
+                })}{" "}
+                · Studio entier
+              </Text>
+              {pz.status === "pending_payment" && (
+                <>
+                  <Text style={styles.resStatus}>_En attente de paiement (10 min)</Text>
+                  <View style={styles.resActions}>
+                    <TouchableOpacity style={styles.resPayBtn} onPress={() => payPrivatization(pz)}>
+                      <Text style={styles.resPayText}>PAYER</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.resCancelBtn} onPress={() => cancelPrivatization(pz)}>
+                      <Text style={styles.resCancelText}>ANNULER</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          ))}
+
           <AppButton
             label="Gérer mes réservations"
             fontSize={10}
@@ -436,16 +602,31 @@ export default function ProfileScreen() {
               statusText = start && start > now ? "À venir" : "En cours";
             }
             return (
-              <Text key={l.id} style={styles.line}>
-                _ {l.physical_units?.instrument_models?.name || "Instrument"} ·{" "}
-                {l.start_date
-                  ? new Date(l.start_date).toLocaleDateString("fr-FR", {
-                      day: "numeric",
-                      month: "short",
-                    }) + " · "
-                  : ""}
-                {statusText}
-              </Text>
+              <View key={l.id} style={styles.resCard}>
+                <Text style={styles.line}>
+                  _ {l.physical_units?.instrument_models?.name || "Instrument"} ·{" "}
+                  {l.start_date
+                    ? new Date(l.start_date).toLocaleDateString("fr-FR", {
+                        day: "numeric",
+                        month: "short",
+                      }) + " · "
+                    : ""}
+                  {statusText}
+                </Text>
+                {l.status === "requested" && l.payment_status === "unpaid" && (
+                  <>
+                    <Text style={styles.resStatus}>_En attente de paiement (10 min)</Text>
+                    <View style={styles.resActions}>
+                      <TouchableOpacity style={styles.resPayBtn} onPress={() => payLoan(l)}>
+                        <Text style={styles.resPayText}>PAYER</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.resCancelBtn} onPress={() => cancelLoan(l)}>
+                        <Text style={styles.resCancelText}>ANNULER</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
             );
           })}
           <AppButton
@@ -578,6 +759,40 @@ const styles = StyleSheet.create({
   },
   value: { color: "#fff", fontSize: 15, marginBottom: 8 },
   line: { color: "#fff", fontSize: 13, fontStyle: "italic" },
+  resCard: {
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: "#000",
+  },
+  resStatus: {
+    color: "#ffd700",
+    fontSize: 11,
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+  resActions: { flexDirection: "row", gap: 8, marginTop: 8 },
+  resPayBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ff2bd6",
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  resPayText: { color: "#ff2bd6", fontWeight: "bold", fontStyle: "italic", fontSize: 12 },
+  resCancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#666",
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  resCancelText: { color: "#8e8e93", fontWeight: "bold", fontStyle: "italic", fontSize: 12 },
+
   empty: { color: "#8e8e93", fontStyle: "italic" },
   row: { flexDirection: "row", gap: 8 },
 });

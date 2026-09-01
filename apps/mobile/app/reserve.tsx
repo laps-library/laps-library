@@ -125,6 +125,23 @@ export default function ReserveScreen() {
   const [weeks, setWeeks] = useState(1);
   const [instrId, setInstrId] = useState("");
   const [privatDate, setPrivatDate] = useState("");
+  const [privatizations, setPrivatizations] = useState<any[]>([]);
+  const [allReservations, setAllReservations] = useState<any[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const { data: pz } = await supabase
+        .from("privatizations")
+        .select("privat_date, status")
+        .in("status", ["confirmed", "pending_payment"]);
+      setPrivatizations(pz ?? []);
+      const { data: rs } = await supabase
+        .from("reservations")
+        .select("reservation_date, time_slot_id, station_id, workstation_id, status")
+        .in("status", ["confirmed", "pending_payment", "pending_validation"]);
+      setAllReservations(rs ?? []);
+    })();
+  }, []);
   const [msg, setMsg] = useState("");
 
   async function load() {
@@ -268,7 +285,7 @@ export default function ReserveScreen() {
     const d = new Date();
     d.setDate(d.getDate() + i + 1);
     return d;
-  }).filter((d) => d.getDay() === 0 || d.getDay() === 1);
+  });
 
   const weekOptions = Array.from({ length: 4 }, (_, i) => {
     const d = new Date();
@@ -281,6 +298,24 @@ export default function ReserveScreen() {
   });
 
   const slot = slots.find((s) => s.id === slotId);
+
+  const privatizedDates = new Set(privatizations.map((x) => x.privat_date));
+
+  // Une privatisation rend toute la journée indisponible pour les créneaux.
+  // Une réservation de créneau rend la journée indisponible pour une privatisation complète.
+  const partiallyBookedDates = new Set(allReservations.map((r) => r.reservation_date));
+
+  // Occupation précise uniquement pour le couple jour + horaire sélectionné.
+  // On bloque le poste concerné, pas tout l'horaire.
+  const occupiedForSelectedSlot = allReservations.filter(
+    (r) => r.reservation_date === date && r.time_slot_id === slotId,
+  );
+  const occupiedStationIds = new Set(
+    occupiedForSelectedSlot.map((r) => r.station_id).filter(Boolean),
+  );
+  const occupiedWorkstationIds = new Set(
+    occupiedForSelectedSlot.map((r) => r.workstation_id).filter(Boolean),
+  );
 
   const isDouble = slot?.code === "slot_ab";
 
@@ -325,6 +360,7 @@ export default function ReserveScreen() {
     ref: Record<string, string>,
     amount: number,
     label: string,
+    cancelTargets?: Array<{ table: "reservations" | "loans" | "privatizations" | "slot_packs"; id: string | null | undefined }>,
   ) {
     const redirectUrl = ExpoLinking.createURL("payment-success");
 
@@ -340,7 +376,7 @@ export default function ReserveScreen() {
     });
 
     if (error || !(data as any)?.url) {
-      setMsg("Erreur paiement : " + (error?.message ?? "url manquante"));
+      setMsg("Erreur paiement : " + (error?.message ?? "url manquante") + ". Ta pré-réservation reste disponible 10 min dans ton profil.");
       return;
     }
 
@@ -352,7 +388,7 @@ export default function ReserveScreen() {
     if (result.type === "success") {
       router.replace("/payment-success");
     } else {
-      setMsg("Paiement annulé ou non finalisé.");
+      setMsg("Paiement non finalisé. Retrouve ta pré-réservation dans ton profil pour payer ou annuler (10 min).");
     }
   }
 
@@ -363,6 +399,27 @@ export default function ReserveScreen() {
       !supervised && addPackCents === 0 && payWith === "pack" && !!pack && pack.slots_remaining > 0;
 
     const payNow = !supervised && slotPrice > 0 && !usePack;
+
+    const { data: conflictRows } = await supabase
+      .from("reservations")
+      .select("user_id, status, station_id, workstation_id")
+      .eq("time_slot_id", slotId)
+      .eq("reservation_date", date)
+      .in("status", ["confirmed", "pending_payment", "pending_validation"]);
+    if (conflictRows && conflictRows.length > 0) {
+      const matching = conflictRows.filter((x: any) =>
+        stationId ? x.station_id === stationId : x.workstation_id === wsId
+      );
+      const minePending = matching.find(
+        (x: any) => x.user_id === userId && x.status === "pending_payment"
+      );
+      if (minePending) {
+        setMsg(
+          "Erreur : Tu as déjà pré-réservé ce poste à cet horaire. Finalises le paiement à partir de ton profil."
+        );
+        return;
+      }
+    }
 
     if (hasSubscriptionSelection) {
       const subscriptionPlan = selectedSubscriptionPlan;
@@ -432,7 +489,7 @@ export default function ReserveScreen() {
       if (result.type === "success") {
         router.replace("/payment-success");
       } else {
-        setMsg("Paiement annulé ou non finalisé.");
+        setMsg("Paiement non finalisé. Retrouve ta pré-réservation dans ton profil pour payer ou annuler (10 min).");
       }
 
       return;
@@ -531,6 +588,10 @@ export default function ReserveScreen() {
           },
           slotPrice + addPackCents,
           "Créneau + carte créneaux LAPS",
+          [
+            { table: "reservations", id: data.id },
+            { table: "slot_packs", id: bundlePackId },
+          ],
         );
       } else {
         await payOnline(
@@ -540,6 +601,7 @@ export default function ReserveScreen() {
           },
           slotPrice,
           "Créneau LAPS Library",
+          [{ table: "reservations", id: data.id }],
         );
       }
     } else {
@@ -592,7 +654,8 @@ export default function ReserveScreen() {
         duration_weeks: weeks,
         price_cents: loanPrice,
         amount_cents: loanPrice,
-        status: "active",
+        status: "requested",
+        payment_status: "unpaid",
         started_at: now,
         due_at: dueAt,
         fee_cents: 0,
@@ -618,6 +681,32 @@ export default function ReserveScreen() {
   }
 
   async function confirmPrivat() {
+    const { data: conflict } = await supabase
+      .from("privatizations")
+      .select("id, user_id, status")
+      .eq("privat_date", privatDate)
+      .in("status", ["confirmed", "pending_payment"]);
+    if (conflict && conflict.length > 0) {
+      const mine = conflict.find((x: any) => x.user_id === userId && x.status === "pending_payment");
+      setMsg(
+        mine
+          ? "Erreur : Tu as déjà pré-réservé cette privatisation. Finalises le paiement à partir de ton profil."
+          : "Erreur : cette date est déjà réservée ou en cours de réservation."
+      );
+      return;
+    }
+
+    const { data: dayReservations } = await supabase
+      .from("reservations")
+      .select("id")
+      .eq("reservation_date", privatDate)
+      .in("status", ["confirmed", "pending_payment", "pending_validation"]);
+
+    if (dayReservations && dayReservations.length > 0) {
+      setMsg("Erreur : cette journée comporte déjà un ou plusieurs créneaux réservés. La privatisation complète n'est plus disponible.");
+      return;
+    }
+
     const { data, error } = await supabase
       .from("privatizations")
       .insert({
@@ -643,7 +732,18 @@ export default function ReserveScreen() {
       },
       44000,
       "Privatisation LAPS Library",
+      [{ table: "privatizations", id: data.id }],
     );
+  }
+
+  async function cancelIn(table: "reservations" | "loans" | "privatizations" | "slot_packs", id: string | null | undefined) {
+    if (!id) return;
+    try {
+      const fn = `cancel_${table === "slot_packs" ? "slot_pack" : table.slice(0, -1)}`;
+      await supabase.rpc(fn, {
+        [`p_${table === "slot_packs" ? "pack" : table.slice(0, -1)}_id`]: id,
+      });
+    } catch (_) {}
   }
 
   function cta(label: string, enabled: boolean, onPress: () => void) {
@@ -755,7 +855,7 @@ export default function ReserveScreen() {
 
               <Text style={styles.optionSub}>
                 Correspond à l'ensemble des postes et le lieu de résidence réservés sur une plage
-                étendue le dimanche uniquement.
+                étendue, tous les jours.
               </Text>
             </TouchableOpacity>
 
@@ -827,19 +927,24 @@ export default function ReserveScreen() {
             <View style={styles.chips}>
               {days.map((d) => {
                 const ds = dateStr(d);
+                const priv = privatizedDates.has(ds);
 
                 return (
                   <TouchableOpacity
                     key={ds}
-                    style={[styles.chip, date === ds && styles.chipActive]}
-                    onPress={() => setDate(ds)}
+                    style={[styles.chip, date === ds && styles.chipActive, priv && styles.chipDisabled]}
+                    onPress={() => {
+                      if (!priv) setDate(ds);
+                    }}
+                    disabled={priv}
                   >
-                    <Text style={[styles.chipText, date === ds && styles.chipTextActive]}>
+                    <Text style={[styles.chipText, date === ds && styles.chipTextActive, priv && styles.chipTextDisabled]}>
                       {d.toLocaleDateString("fr-FR", {
                         weekday: "short",
                         day: "2-digit",
                         month: "2-digit",
                       })}
+                      {priv ? " (privatisé)" : ""}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -919,60 +1024,67 @@ export default function ReserveScreen() {
             <Text style={styles.label}>_Postes premium</Text>
 
             <View>
-              {stations.map((s) => (
-                <TouchableOpacity
-                  key={s.id}
-                  disabled={!!plan?.free_service_only}
-                  style={[
-                    styles.stationRow,
-                    stationId === s.id && styles.stationRowActive,
-                    !!plan?.free_service_only && styles.stationRowDisabled,
-                  ]}
-                  onPress={() => {
-                    setStationId(s.id);
-                    setWsId("");
-                  }}
-                >
-                  <View style={styles.stationRowBody}>
-                    <Text
-                      style={[
-                        styles.stationRowName,
-                        !!plan?.free_service_only && styles.stationRowTextDisabled,
-                      ]}
-                    >
-                      {s.name}
-                    </Text>
+              {stations.map((s) => {
+                const taken = occupiedStationIds.has(s.id);
+                const disabled = !!plan?.free_service_only || taken;
 
-                    {(s.package ?? []).map((pk, idx) => (
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    disabled={disabled}
+                    style={[
+                      styles.stationRow,
+                      stationId === s.id && styles.stationRowActive,
+                      disabled && styles.stationRowDisabled,
+                    ]}
+                    onPress={() => {
+                      if (disabled) return;
+                      setStationId(s.id);
+                      setWsId("");
+                    }}
+                  >
+                    <View style={styles.stationRowBody}>
                       <Text
-                        key={idx}
                         style={[
-                          styles.stationRowPack,
-                          !isAccessory(pk) && styles.stationRowPackBold,
-                          !!plan?.free_service_only && styles.stationRowTextDisabled,
+                          styles.stationRowName,
+                          disabled && styles.stationRowTextDisabled,
                         ]}
                       >
-                        _ {pk}
+                        {s.name}
+                        {taken ? " (déjà réservé)" : ""}
                       </Text>
-                    ))}
-                  </View>
 
-                  {stationPhotoSource(s) ? (
-                    <Image
-                      source={stationPhotoSource(s)}
-                      style={[
-                        styles.stationRowPhoto,
-                        !!plan?.free_service_only && styles.stationRowPhotoDisabled,
-                      ]}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <View style={[styles.stationRowPhoto, styles.stationPhotoEmpty]}>
-                      <Text style={styles.photoLetter}>{s.brand?.[0]}</Text>
+                      {(s.package ?? []).map((pk, idx) => (
+                        <Text
+                          key={idx}
+                          style={[
+                            styles.stationRowPack,
+                            !isAccessory(pk) && styles.stationRowPackBold,
+                            disabled && styles.stationRowTextDisabled,
+                          ]}
+                        >
+                          _ {pk}
+                        </Text>
+                      ))}
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))}
+
+                    {stationPhotoSource(s) ? (
+                      <Image
+                        source={stationPhotoSource(s)}
+                        style={[
+                          styles.stationRowPhoto,
+                          disabled && styles.stationRowPhotoDisabled,
+                        ]}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={[styles.stationRowPhoto, styles.stationPhotoEmpty]}>
+                        <Text style={styles.photoLetter}>{s.brand?.[0]}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {plan?.free_service_only && (
@@ -992,20 +1104,36 @@ export default function ReserveScreen() {
             </View>
 
             <View style={styles.chips}>
-              {workstations.map((w) => (
-                <TouchableOpacity
-                  key={w.id}
-                  style={[styles.chip, wsId === w.id && styles.chipActive]}
-                  onPress={() => {
-                    setWsId(w.id);
-                    setStationId("");
-                  }}
-                >
-                  <Text style={[styles.chipText, wsId === w.id && styles.chipTextActive]}>
-                    {w.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {workstations.map((w) => {
+                const taken = occupiedWorkstationIds.has(w.id);
+                return (
+                  <TouchableOpacity
+                    key={w.id}
+                    style={[
+                      styles.chip,
+                      wsId === w.id && styles.chipActive,
+                      taken && styles.chipDisabled,
+                    ]}
+                    onPress={() => {
+                      if (taken) return;
+                      setWsId(w.id);
+                      setStationId("");
+                    }}
+                    disabled={taken}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        wsId === w.id && styles.chipTextActive,
+                        taken && styles.chipTextDisabled,
+                      ]}
+                    >
+                      {w.name}
+                      {taken ? " (déjà réservé)" : ""}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <TouchableOpacity
@@ -1428,18 +1556,40 @@ export default function ReserveScreen() {
               {privatDays.map((d) => {
                 const ds = dateStr(d);
 
+                const alreadyPrivatized = privatizedDates.has(ds);
+                const partiallyBooked = partiallyBookedDates.has(ds);
+                const unavailable = alreadyPrivatized || partiallyBooked;
+
                 return (
                   <TouchableOpacity
                     key={ds}
-                    style={[styles.chip, privatDate === ds && styles.chipActive]}
-                    onPress={() => setPrivatDate(ds)}
+                    style={[
+                      styles.chip,
+                      privatDate === ds && styles.chipActive,
+                      unavailable && styles.chipDisabled,
+                    ]}
+                    onPress={() => {
+                      if (!unavailable) setPrivatDate(ds);
+                    }}
+                    disabled={unavailable}
                   >
-                    <Text style={[styles.chipText, privatDate === ds && styles.chipTextActive]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        privatDate === ds && styles.chipTextActive,
+                        unavailable && styles.chipTextDisabled,
+                      ]}
+                    >
                       {d.toLocaleDateString("fr-FR", {
                         weekday: "short",
                         day: "2-digit",
                         month: "2-digit",
                       })}
+                      {alreadyPrivatized
+                        ? " (privatisé)"
+                        : partiallyBooked
+                          ? " (partiellement réservé)"
+                          : ""}
                     </Text>
                   </TouchableOpacity>
                 );
