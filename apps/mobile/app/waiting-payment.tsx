@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -6,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
 
 export default function WaitingPaymentScreen() {
+  const { t } = useLang();
   const [status, setStatus] = useState("checking");
   const [countdown, setCountdown] = useState(3);
 
@@ -62,15 +64,15 @@ export default function WaitingPaymentScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>_Paiement en cours</Text>
+        <Text style={styles.title}>{t("ttl.payment_in_progress")}</Text>
         <Text style={styles.msg}>
           {status === "checking"
             ? "Vérification en cours..."
             : "Ton abonnement sera activé dès la confirmation du paiement.\nLaisse la page Stripe ouverte."}
         </Text>
-        <AppButton label="J'ai payé - Vérifier" fontSize={14} onPress={checkPayment} />
+        <AppButton label={t("lbl.i_paid_check")} fontSize={14} onPress={checkPayment} />
         <AppButton
-          label="Retour au choix"
+          label={t("lbl.back_to_choices")}
           fontSize={10}
           onPress={() => router.replace("/choose-plan")}
         />

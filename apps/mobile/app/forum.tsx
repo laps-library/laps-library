@@ -1,12 +1,13 @@
+import { useLang } from "../lib/i18n";
 import { useCallback, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
-import BackButton from "../components/BackButton";
 
 export default function ForumScreen() {
+  const { t } = useLang();
   const [threads, setThreads] = useState<any[]>([]);
 
   async function load() {
@@ -25,13 +26,11 @@ export default function ForumScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Forum</Text>
-        <AppButton label="Nouveau sujet" onPress={() => router.push("/forum-new")} />
+        <AppButton label={t("lbl.new_topic")} onPress={() => router.push("/forum-new")} />
 
         {threads.length === 0 && (
-          <Text style={styles.empty}>Aucun sujet. Lance la discussion !</Text>
+          <Text style={styles.empty}>{t("msg.no_topic")}</Text>
         )}
         {threads.map((t) => (
           <TouchableOpacity

@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -183,6 +184,7 @@ function MarqueeNotice({ text }: { text: string }) {
 }
 
 export default function MiniPlayer() {
+  const { t } = useLang();
   const [lineThin, setLineThin] = useState(bannerMenuOpen);
   useEffect(() => {
     const l = (o: boolean) => setLineThin(o);
@@ -222,11 +224,11 @@ export default function MiniPlayer() {
     >
       <View {...swipeResponder.panHandlers}>
         <View style={[styles.noticeLine, lineThin && { height: 1 }]} />
-        <MarqueeNotice text="_Le lieu d'apprentissage des pratiques du son ouvre bientôt." />
+        <MarqueeNotice text={t("player.notice")} />
       </View>
+      <View style={styles.noticeLine} />
       <LinearGradient
-        colors={["#ff2bd6", "#000", "#000"]}
-        locations={[0, 0.04, 1]}
+        colors={["#000", "#000"]}
         style={styles.bar}
       >
         <View style={styles.side}>
@@ -256,7 +258,7 @@ export default function MiniPlayer() {
 }
 
 const styles = StyleSheet.create({
-  noticeLine: { height: 4, backgroundColor: "#ff2bd6", marginTop: 0, marginBottom: 0 },
+  noticeLine: { height: 2, backgroundColor: "#ff2bd6", marginTop: 0, marginBottom: 0 },
   marqueeContainer: {
     overflow: "hidden",
     width: "100%",

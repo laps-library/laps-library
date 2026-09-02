@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useState } from "react";
 import {
   Image,
@@ -16,6 +17,7 @@ import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
 
 export default function LoginScreen() {
+  const { t } = useLang();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ export default function LoginScreen() {
 
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder={t("plh.email")}
             placeholderTextColor="#8e8e93"
             autoCapitalize="none"
             keyboardType="email-address"
@@ -47,7 +49,7 @@ export default function LoginScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Mot de passe"
+            placeholder={t("plh.password")}
             placeholderTextColor="#8e8e93"
             secureTextEntry
             value={password}
@@ -56,12 +58,12 @@ export default function LoginScreen() {
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <AppButton label={loading ? "Connexion..." : "Se connecter"} onPress={handleLogin} />
+          <AppButton label={loading ? t("lbl.logging_in") : t("lbl.login_btn")} onPress={handleLogin} />
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Pas encore de compte ?</Text>
+            <Text style={styles.footerText}>{t("msg.no_account_yet")}</Text>
             <Link href="/register" style={styles.link}>
-              _S'inscrire
+              {t("lbl.signup_link")}
             </Link>
           </View>
         </ScrollView>

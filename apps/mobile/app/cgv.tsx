@@ -1,7 +1,7 @@
+import { useLang } from "../lib/i18n";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import BackButton from "../components/BackButton";
-
 const SECTIONS: { t: string; c: string[] }[] = [
   {
     t: "1 · Objet",
@@ -88,11 +88,12 @@ const SECTIONS: { t: string; c: string[] }[] = [
 ];
 
 export default function CgvScreen() {
+  const { t } = useLang();
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_CGV · Abonnements</Text>
+        <Text style={styles.title}>{t("ttl.terms_subs")}</Text>
         {SECTIONS.map((sec) => (
           <View key={sec.t} style={styles.block}>
             <Text style={styles.h}>{sec.t}</Text>

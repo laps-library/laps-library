@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -6,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
 
 export default function ConfirmEmailScreen() {
+  const { t } = useLang();
   const { email } = useLocalSearchParams();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export default function ConfirmEmailScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Vérifie ta boîte mail</Text>
+        <Text style={styles.title}>{t("ttl.check_mailbox")}</Text>
         <Text style={styles.text}>
           Un lien de confirmation a été envoyé à{"\n"}
           <Text style={styles.email}>{String(email ?? "")}</Text>
@@ -37,7 +39,7 @@ export default function ConfirmEmailScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Mot de passe"
+          placeholder={t("plh.password")}
           placeholderTextColor="#8e8e93"
           secureTextEntry
           value={password}

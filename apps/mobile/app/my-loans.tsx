@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -5,8 +6,8 @@ import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
 import BackButton from "../components/BackButton";
-
 export default function MyLoansScreen() {
+  const { t } = useLang();
   const [loans, setLoans] = useState<any[]>([]);
 
   async function load() {
@@ -72,14 +73,14 @@ export default function MyLoansScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <Text style={styles.title}>_Mes emprunts</Text>
+      <Text style={styles.title}>{t("ttl.my_loans")}</Text>
       <FlatList
         data={loans}
         keyExtractor={(l) => l.id}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={styles.empty}>Aucun emprunt.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{t("msg.no_loan")}</Text>}
         renderItem={({ item }) => {
-          const instrName = item.physical_units?.instrument_models?.name || "Instrument";
+          const instrName = item.physical_units?.instrument_models?.name || t("msg.instrument");
           const instrBrand = item.physical_units?.instrument_models?.brand || "";
           const canModify = item.status === "requested" || item.status === "active";
           const canCancel = item.status === "requested";
@@ -167,12 +168,12 @@ export default function MyLoansScreen() {
                     }
                     style={styles.btnModify}
                   >
-                    <Text style={styles.btnText}>Modifier</Text>
+                    <Text style={styles.btnText}>{t("msg.edit_2")}</Text>
                   </TouchableOpacity>
 
                   {canCancel && (
                     <TouchableOpacity onPress={() => cancelLoan(item.id)} style={styles.btnCancel}>
-                      <Text style={styles.btnText}>Annuler</Text>
+                      <Text style={styles.btnText}>{t("msg.cancel")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>

@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ExpoLinking from "expo-linking";
@@ -15,10 +16,10 @@ import {
   View,
 } from "react-native";
 import { LOCAL_PHOTOS } from "../assets/instruments/manifest";
-import BackButton from "../components/BackButton";
 import { supabase } from "../lib/supabase";
 import { styles } from "../components/reserve/styles";
 import { cleanKey, photoSource, stationPhotoSource, isAccessory } from "../lib/instrumentUtils";
+const LIBRARY_OPEN = false;
 
 function dateStr(d: Date) {
   const y = d.getFullYear();
@@ -92,6 +93,7 @@ type Pack = {
 };
 
 export default function ReserveScreen() {
+  const { t } = useLang();
   const [mode, setMode] = useState<null | "slot" | "loan" | "privat">(null);
   const [step, setStep] = useState(1);
 
@@ -376,7 +378,7 @@ export default function ReserveScreen() {
     });
 
     if (error || !(data as any)?.url) {
-      setMsg("Erreur paiement : " + (error?.message ?? "url manquante") + ". Ta pré-réservation reste disponible 10 min dans ton profil.");
+      setMsg(t("res.pay_error_prefix") + (error?.message ?? t("res.url_missing")) + t("res.pay_error_suffix"));
       return;
     }
 
@@ -388,7 +390,7 @@ export default function ReserveScreen() {
     if (result.type === "success") {
       router.replace("/payment-success");
     } else {
-      setMsg("Paiement non finalisé. Retrouve ta pré-réservation dans ton profil pour payer ou annuler (10 min).");
+      setMsg(t("res.pay_not_finalized"));
     }
   }
 
@@ -415,7 +417,7 @@ export default function ReserveScreen() {
       );
       if (minePending) {
         setMsg(
-          "Erreur : Tu as déjà pré-réservé ce poste à cet horaire. Finalises le paiement à partir de ton profil."
+          t("res.already_prebooked_slot")
         );
         return;
       }
@@ -479,7 +481,7 @@ export default function ReserveScreen() {
       );
 
       if (checkErr || !(checkData as any)?.url) {
-        setMsg("Erreur paiement : " + (checkErr?.message ?? "url manquante"));
+        setMsg(t("res.pay_error_prefix") + (checkErr?.message ?? t("res.url_missing")));
         return;
       }
 
@@ -489,7 +491,7 @@ export default function ReserveScreen() {
       if (result.type === "success") {
         router.replace("/payment-success");
       } else {
-        setMsg("Paiement non finalisé. Retrouve ta pré-réservation dans ton profil pour payer ou annuler (10 min).");
+        setMsg(t("res.pay_not_finalized"));
       }
 
       return;
@@ -502,7 +504,7 @@ export default function ReserveScreen() {
         setMsg(
           "Carte insuffisante : il te faut " +
             slotsToDeduct +
-            " créneau(x), il t’en reste " +
+            t("res.slots_left_mid") +
             pack.slots_remaining +
             ".",
         );
@@ -517,7 +519,7 @@ export default function ReserveScreen() {
         .eq("id", pack.id);
 
       if (pe) {
-        setMsg("Erreur carte : " + pe.message);
+        setMsg(t("res.card_error") + pe.message);
         return;
       }
 
@@ -543,7 +545,7 @@ export default function ReserveScreen() {
         .single();
 
       if (pke || !pk) {
-        setMsg("Erreur carte : " + (pke?.message ?? "création"));
+        setMsg(t("res.card_error") + (pke?.message ?? "création"));
         return;
       }
 
@@ -587,7 +589,7 @@ export default function ReserveScreen() {
             pack_id: bundlePackId,
           },
           slotPrice + addPackCents,
-          "Créneau + carte créneaux LAPS",
+          t("res.slot_card_pack"),
           [
             { table: "reservations", id: data.id },
             { table: "slot_packs", id: bundlePackId },
@@ -600,7 +602,7 @@ export default function ReserveScreen() {
             reservation_id: data.id,
           },
           slotPrice,
-          "Créneau LAPS Library",
+          t("res.slot_laps"),
           [{ table: "reservations", id: data.id }],
         );
       }
@@ -612,15 +614,15 @@ export default function ReserveScreen() {
           },
         });
 
-        setMsg("📧 Mail envoyé !");
+        setMsg(t("res.mail_sent"));
       } catch (e) {
         setMsg("❌ Mail erreur : " + (e as any)?.message);
       }
 
       setMsg(
         supervised
-          ? "✅ Réservation enregistrée ! En attente de validation LAPS."
-          : "✅ Réservation enregistrée !",
+          ? t("res.booked_pending")
+          : t("res.booked"),
       );
     }
   }
@@ -637,7 +639,7 @@ export default function ReserveScreen() {
       .maybeSingle();
 
     if (unitErr || !unit) {
-      setMsg("Aucune unité disponible pour cet instrument.");
+      setMsg(t("res.no_unit"));
       return;
     }
 
@@ -690,8 +692,8 @@ export default function ReserveScreen() {
       const mine = conflict.find((x: any) => x.user_id === userId && x.status === "pending_payment");
       setMsg(
         mine
-          ? "Erreur : Tu as déjà pré-réservé cette privatisation. Finalises le paiement à partir de ton profil."
-          : "Erreur : cette date est déjà réservée ou en cours de réservation."
+          ? t("res.already_prebooked_priv")
+          : t("res.date_taken")
       );
       return;
     }
@@ -703,7 +705,7 @@ export default function ReserveScreen() {
       .in("status", ["confirmed", "pending_payment", "pending_validation"]);
 
     if (dayReservations && dayReservations.length > 0) {
-      setMsg("Erreur : cette journée comporte déjà un ou plusieurs créneaux réservés. La privatisation complète n'est plus disponible.");
+      setMsg(t("res.day_has_slots"));
       return;
     }
 
@@ -798,9 +800,9 @@ export default function ReserveScreen() {
             <Text style={styles.planCardTitle}>_{subscriptionPlan.name}</Text>
 
             <Text style={styles.planCardSubtitle}>
-              {isPro ? "L'accès complet à LAPS" : "La formule illimitée"}
+              {isPro ? t("res.full_access") : t("res.unlimited")}
             </Text>
-            {isDisabled && <Text style={styles.comingSoon}>Bientôt disponible</Text>}
+            {isDisabled && <Text style={styles.comingSoon}>{t("msg.soon")}</Text>}
           </View>
 
           <View style={styles.planPriceBox}>
@@ -828,7 +830,7 @@ export default function ReserveScreen() {
 
         {isSelected && (
           <View style={styles.planSelectedBadge}>
-            <Text style={styles.planSelectedBadgeText}>FORMULE SÉLECTIONNÉE</Text>
+            <Text style={styles.planSelectedBadgeText}>{t("msg.selected_plan")}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -837,45 +839,53 @@ export default function ReserveScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
-
       <ScrollView contentContainerStyle={styles.scroll}>
         {mode === null && (
           <View style={styles.stepBox}>
-            <Text style={styles.stepLabel}>_Que veux-tu faire ?</Text>
+            <Text style={styles.stepLabel}>{t("ttl.what_to_do")}</Text>
 
             <TouchableOpacity
-              style={styles.optionCard}
+              style={[styles.optionCard, !LIBRARY_OPEN && styles.optionDisabled]}
+              disabled={!LIBRARY_OPEN}
               onPress={() => {
                 setMode("privat");
                 setStep(1);
               }}
             >
-              <Text style={styles.optionTitle}>_Réserver la bibliothèque</Text>
-
-              <Text style={styles.optionSub}>
-                Correspond à l'ensemble des postes et le lieu de résidence réservés sur une plage
-                étendue, tous les jours.
+              <Text style={[styles.optionTitle, !LIBRARY_OPEN && styles.optionTextDisabled]}>
+                {t("res.opt_library")}
               </Text>
+
+              <Text style={[styles.optionSub, !LIBRARY_OPEN && styles.optionTextDisabled]}>
+                {t("res.opt_library_sub")}
+              </Text>
+
+              {!LIBRARY_OPEN && <Text style={styles.soonBadge}>{t("ttl.soon")}</Text>}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.optionCard}
+              style={[styles.optionCard, !LIBRARY_OPEN && styles.optionDisabled]}
+              disabled={!LIBRARY_OPEN}
               onPress={() => {
                 setMode("slot");
                 setStep(1);
                 setSelectedSubscriptionPlan(null);
               }}
             >
-              <Text style={styles.optionTitle}>_Réserver un créneau</Text>
-
-              <Text style={styles.optionSub}>
-                Simple, double ou supervisé, premium ou libre service
+              <Text style={[styles.optionTitle, !LIBRARY_OPEN && styles.optionTextDisabled]}>
+                {t("res.opt_slot")}
               </Text>
+
+              <Text style={[styles.optionSub, !LIBRARY_OPEN && styles.optionTextDisabled]}>
+                {t("res.opt_slot_sub")}
+              </Text>
+
+              {!LIBRARY_OPEN && <Text style={styles.soonBadge}>{t("ttl.soon")}</Text>}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.optionCard, !loanEnabled && styles.optionDisabled]}
+              style={[styles.optionCard, (!loanEnabled || !LIBRARY_OPEN) && styles.optionDisabled]}
+              disabled={!LIBRARY_OPEN}
               onPress={() => {
                 if (loanEnabled) {
                   setMode("loan");
@@ -883,32 +893,36 @@ export default function ReserveScreen() {
                 }
               }}
             >
-              <Text style={[styles.optionTitle, !loanEnabled && styles.optionTextDisabled]}>
-                _Réserver l'emprunt d'un instrument
+              <Text
+                style={[styles.optionTitle, (!loanEnabled || !LIBRARY_OPEN) && styles.optionTextDisabled]}
+              >
+                {t("res.opt_loan")}
               </Text>
 
-              <Text style={[styles.optionSub, !loanEnabled && styles.optionTextDisabled]}>
-                Repartez chez vous avec une nouvelle machine
+              <Text
+                style={[styles.optionSub, (!loanEnabled || !LIBRARY_OPEN) && styles.optionTextDisabled]}
+              >
+                {t("res.opt_loan_sub")}
               </Text>
+
+              {!LIBRARY_OPEN && <Text style={styles.soonBadge}>{t("ttl.soon")}</Text>}
             </TouchableOpacity>
 
             {isFree && (
               <Text style={styles.terms}>
-                _Ta formule Newbie ne permet pas l'emprunt d'instrument.
+                {t("res.terms_free_loan")}
               </Text>
             )}
 
             {isFree && (
               <Text style={styles.terms}>
-                _Réserver un poste libre service vous donne la possibilité d'utiliser un poste
-                premium, si et seulement si celui-ci n'est pas réservé ou utilisé lors de votre
-                passage.
+                {t("res.terms_free_selfservice")}
               </Text>
             )}
 
             {!isFree && !idVerified && (
               <Text style={styles.terms}>
-                _Pièce d'identité à faire vérifier à partir de ton profil.
+                {t("res.terms_id")}
               </Text>
             )}
           </View>
@@ -916,13 +930,11 @@ export default function ReserveScreen() {
 
         {mode === "slot" && step === 1 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setMode(null)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setMode(null)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Étape 1/4 · {plan?.name}</Text>
+            <Text style={styles.stepLabel}>{t("res.step1_4")} · {plan?.name}</Text>
 
-            <Text style={styles.label}>_Choisis ton jour</Text>
+            <Text style={styles.label}>{t("ttl.choose_day")}</Text>
 
             <View style={styles.chips}>
               {days.map((d) => {
@@ -944,33 +956,31 @@ export default function ReserveScreen() {
                         day: "2-digit",
                         month: "2-digit",
                       })}
-                      {priv ? " (privatisé)" : ""}
+                      {priv ? t("res.privatized") : ""}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            {cta("Continuer", !!date, () => setStep(2))}
+            {cta(t("lbl.continue"), !!date, () => setStep(2))}
           </View>
         )}
 
         {mode === "slot" && step === 2 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setStep(1)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setStep(1)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Étape 2/4 · {plan?.name}</Text>
+            <Text style={styles.stepLabel}>{t("res.step2_4")} · {plan?.name}</Text>
 
-            <Text style={styles.label}>_Type de créneau</Text>
+            <Text style={styles.label}>{t("ttl.slot_type")}</Text>
 
             <View style={styles.chips}>
               <TouchableOpacity
                 style={[styles.chip, !supervised && styles.chipActive]}
                 onPress={() => setSupervised(false)}
               >
-                <Text style={[styles.chipText, !supervised && styles.chipTextActive]}>Normal</Text>
+                <Text style={[styles.chipText, !supervised && styles.chipTextActive]}>{t("msg.normal")}</Text>
               </TouchableOpacity>
 
               {plan?.can_access_supervised && (
@@ -985,7 +995,7 @@ export default function ReserveScreen() {
               )}
             </View>
 
-            <Text style={styles.label}>_Horaire</Text>
+            <Text style={styles.label}>{t("ttl.schedule")}</Text>
 
             <View style={styles.chips}>
               {slots.map((s) => (
@@ -1001,17 +1011,15 @@ export default function ReserveScreen() {
               ))}
             </View>
 
-            {cta("Continuer", !!slotId, () => setStep(3))}
+            {cta(t("lbl.continue"), !!slotId, () => setStep(3))}
           </View>
         )}
 
         {mode === "slot" && step === 3 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setStep(2)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setStep(2)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Étape 3/4 · {plan?.name}</Text>
+            <Text style={styles.stepLabel}>{t("res.step3_4")} · {plan?.name}</Text>
 
             <View style={styles.infoCard}>
               <Text style={styles.infoText}>
@@ -1021,7 +1029,7 @@ export default function ReserveScreen() {
               </Text>
             </View>
 
-            <Text style={styles.label}>_Postes premium</Text>
+            <Text style={styles.label}>{t("ttl.premium_stations")}</Text>
 
             <View>
               {stations.map((s) => {
@@ -1051,7 +1059,7 @@ export default function ReserveScreen() {
                         ]}
                       >
                         {s.name}
-                        {taken ? " (déjà réservé)" : ""}
+                        {taken ? t("res.already_booked") : ""}
                       </Text>
 
                       {(s.package ?? []).map((pk, idx) => (
@@ -1093,14 +1101,14 @@ export default function ReserveScreen() {
               </Text>
             )}
 
-            <Text style={styles.label}>_Postes libre service</Text>
+            <Text style={styles.label}>{t("ttl.selfservice_stations")}</Text>
 
             <View style={styles.infoCard}>
-              <Text style={styles.infoText}>_ Keystage 49 (MPE / MIDI 2.0 / Poly AT)</Text>
+              <Text style={styles.infoText}>{t("ttl.keystage")}</Text>
 
-              <Text style={styles.infoText}>_ Interface SSL 18</Text>
+              <Text style={styles.infoText}>{t("ttl.ssl_interface")}</Text>
 
-              <Text style={styles.infoText}>_ Casque Shure SRH440A</Text>
+              <Text style={styles.infoText}>{t("ttl.shure_headphones")}</Text>
             </View>
 
             <View style={styles.chips}>
@@ -1129,7 +1137,7 @@ export default function ReserveScreen() {
                       ]}
                     >
                       {w.name}
-                      {taken ? " (déjà réservé)" : ""}
+                      {taken ? t("res.already_booked") : ""}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1140,7 +1148,7 @@ export default function ReserveScreen() {
               style={styles.dropdownHeader}
               onPress={() => setFsListOpen(!fsListOpen)}
             >
-              <Text style={styles.label}>_Instruments disponibles en libre service</Text>
+              <Text style={styles.label}>{t("ttl.selfservice_instruments")}</Text>
 
               <Text style={styles.typeArrow}>{fsListOpen ? "▴" : "▾"}</Text>
             </TouchableOpacity>
@@ -1161,7 +1169,7 @@ export default function ReserveScreen() {
               </View>
             )}
 
-            {cta("Continuer", !!stationId || !!wsId, () => {
+            {cta(t("lbl.continue"), !!stationId || !!wsId, () => {
               setSelectedSubscriptionPlan(null);
               setStep(4);
             })}
@@ -1170,11 +1178,9 @@ export default function ReserveScreen() {
 
         {mode === "slot" && step === 4 && (
           <View style={[styles.stepBox, styles.stepBoxGrow]}>
-            <Text style={styles.backLink} onPress={() => setStep(3)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setStep(3)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Étape 4/4 · Paiement</Text>
+            <Text style={styles.stepLabel}>{t("ttl.step_4_4")}</Text>
 
             <View style={styles.summaryCard}>
               <Text style={styles.sumRow}>Formule : {plan?.name}</Text>
@@ -1195,7 +1201,7 @@ export default function ReserveScreen() {
                 {slot?.end_time?.slice(0, 5)})
               </Text>
 
-              <Text style={styles.sumRow}>Type : {supervised ? "Supervisé" : "Normal"}</Text>
+              <Text style={styles.sumRow}>Type : {supervised ? t("res.supervised") : t("msg.normal")}</Text>
 
               <Text style={styles.sumRow}>Poste : {posteName || "—"}</Text>
 
@@ -1217,26 +1223,26 @@ export default function ReserveScreen() {
             </Text>
 
             {supervised && (
-              <Text style={styles.terms}>_Créneau supervisé soumis à validation par LAPS.</Text>
+              <Text style={styles.terms}>{t("ttl.supervised_slot")}</Text>
             )}
 
             {!hasSubscriptionSelection && (
               <Text style={styles.terms}>
                 {supervised
-                  ? "_Règlement sur place."
+                  ? t("res.on_site_payment")
                   : payWith === "pack" && pack && slotPrice > 0
                     ? isDouble
-                      ? "_2 créneaux seront décomptés de ta carte."
-                      : "_1 créneau sera décompté de ta carte."
+                      ? t("res.two_slots")
+                      : t("res.one_slot")
                     : slotPrice === 0
-                      ? "_Règlement sur place."
-                      : "_Paiement en ligne sécurisé (Stripe)."}
+                      ? t("res.on_site_payment")
+                      : t("ttl.secure_payment")}
               </Text>
             )}
 
             {slotPrice > 0 && !hasSubscriptionSelection && (
               <View style={styles.paymentSection}>
-                <Text style={styles.label}>_Moyen de paiement</Text>
+                <Text style={styles.label}>{t("ttl.payment_method")}</Text>
 
                 <View style={styles.chips}>
                   {pack && !supervised && addPack === 0 && (
@@ -1265,7 +1271,7 @@ export default function ReserveScreen() {
 
                 {isPro && !supervised && (
                   <>
-                    <Text style={styles.label}>_Ajouter une carte créneaux (PRO)</Text>
+                    <Text style={styles.label}>{t("ttl.add_slot_card")}</Text>
 
                     <View style={styles.chips}>
                       <TouchableOpacity
@@ -1301,7 +1307,7 @@ export default function ReserveScreen() {
                   }}
                   onPress={() => setSubsOpen(!subsOpen)}
                 >
-                  <Text style={styles.subscriptionTitle}>_ Et si tu prenais ton abonnement ?</Text>
+                  <Text style={styles.subscriptionTitle}>{t("ttl.get_subscription")}</Text>
                   <Text
                     style={{
                       color: "#fff",
@@ -1331,7 +1337,7 @@ export default function ReserveScreen() {
                     style={styles.keepCurrentButton}
                     onPress={() => setSelectedSubscriptionPlan(null)}
                   >
-                    <Text style={styles.keepCurrentButtonText}>← Payer uniquement le créneau</Text>
+                    <Text style={styles.keepCurrentButtonText}>{t("ttl.pay_only_slot")}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1367,8 +1373,8 @@ export default function ReserveScreen() {
               hasSubscriptionSelection
                 ? `Adhérer à ${selectedSubscriptionPlan?.name} et payer`
                 : supervised
-                  ? "Réserver en attente de confirmation"
-                  : "Confirmer et payer",
+                  ? t("res.book_pending_confirm")
+                  : t("lbl.confirm_pay"),
               !!date && !!slotId && (!!stationId || !!wsId),
               confirmSlot,
             )}
@@ -1379,13 +1385,11 @@ export default function ReserveScreen() {
 
         {mode === "loan" && step === 1 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setMode(null)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setMode(null)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Étape 1/3 · Semaine de départ</Text>
+            <Text style={styles.stepLabel}>{t("ttl.step_1_3")}</Text>
 
-            <Text style={styles.label}>_Choisis ta semaine</Text>
+            <Text style={styles.label}>{t("ttl.choose_week")}</Text>
 
             <View style={styles.chips}>
               {weekOptions.map((d) => {
@@ -1409,19 +1413,17 @@ export default function ReserveScreen() {
               })}
             </View>
 
-            {cta("Continuer", !!weekStart, () => setStep(2))}
+            {cta(t("lbl.continue"), !!weekStart, () => setStep(2))}
           </View>
         )}
 
         {mode === "loan" && step === 2 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setStep(1)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setStep(1)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Étape 2/3 · Durée</Text>
+            <Text style={styles.stepLabel}>{t("ttl.step_2_3")}</Text>
 
-            <Text style={styles.label}>_Durée d'emprunt</Text>
+            <Text style={styles.label}>{t("ttl.loan_duration")}</Text>
 
             <View style={styles.chips}>
               <TouchableOpacity
@@ -1455,21 +1457,19 @@ export default function ReserveScreen() {
               </TouchableOpacity>
 
               {!isNerd && (
-                <Text style={styles.terms}>_2 semaines : réservé aux formules NERD.</Text>
+                <Text style={styles.terms}>{t("ttl.2_weeks_nerd")}</Text>
               )}
             </View>
 
-            {cta("Continuer", true, () => setStep(3))}
+            {cta(t("lbl.continue"), true, () => setStep(3))}
           </View>
         )}
 
         {mode === "loan" && step === 3 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setStep(2)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setStep(2)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Étape 3/3 · Instrument</Text>
+            <Text style={styles.stepLabel}>{t("ttl.step_3_3")}</Text>
 
             <View style={styles.stationGrid}>
               {instruments.map((i) => (
@@ -1497,17 +1497,15 @@ export default function ReserveScreen() {
               ))}
             </View>
 
-            {cta("Continuer", !!instrId, () => setStep(4))}
+            {cta(t("lbl.continue"), !!instrId, () => setStep(4))}
           </View>
         )}
 
         {mode === "loan" && step === 4 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setStep(3)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setStep(3)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Récapitulatif</Text>
+            <Text style={styles.stepLabel}>{t("ttl.summary")}</Text>
 
             <View style={styles.summaryCard}>
               <Text style={styles.sumRow}>Formule : {plan?.name}</Text>
@@ -1533,12 +1531,12 @@ export default function ReserveScreen() {
             </View>
 
             <Text style={styles.terms}>
-              _Retour de l'instrument au studio à la fin de la période.
+              {t("res.return_instrument")}
             </Text>
 
-            <Text style={styles.terms}>_Paiement en ligne sécurisé (Stripe).</Text>
+            <Text style={styles.terms}>{t("ttl.secure_payment")}</Text>
 
-            {cta("Confirmer et payer", !!weekStart && !!instrId, confirmLoan)}
+            {cta(t("lbl.confirm_pay"), !!weekStart && !!instrId, confirmLoan)}
 
             {msg ? <Text style={styles.msg}>{msg}</Text> : null}
           </View>
@@ -1546,11 +1544,9 @@ export default function ReserveScreen() {
 
         {mode === "privat" && step === 1 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setMode(null)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setMode(null)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Privatisation · Choisis ton jour</Text>
+            <Text style={styles.stepLabel}>{t("ttl.privatization")}</Text>
 
             <View style={styles.chips}>
               {privatDays.map((d) => {
@@ -1586,9 +1582,9 @@ export default function ReserveScreen() {
                         month: "2-digit",
                       })}
                       {alreadyPrivatized
-                        ? " (privatisé)"
+                        ? t("res.privatized")
                         : partiallyBooked
-                          ? " (partiellement réservé)"
+                          ? t("res.partially_booked")
                           : ""}
                     </Text>
                   </TouchableOpacity>
@@ -1596,17 +1592,15 @@ export default function ReserveScreen() {
               })}
             </View>
 
-            {cta("Continuer", !!privatDate, () => setStep(2))}
+            {cta(t("lbl.continue"), !!privatDate, () => setStep(2))}
           </View>
         )}
 
         {mode === "privat" && step === 2 && (
           <View style={styles.stepBox}>
-            <Text style={styles.backLink} onPress={() => setStep(1)}>
-              _Retour
-            </Text>
+            <Text style={styles.backLink} onPress={() => setStep(1)}>{t("ttl.back_2")}</Text>
 
-            <Text style={styles.stepLabel}>_Récapitulatif privatisation</Text>
+            <Text style={styles.stepLabel}>{t("ttl.privat_summary")}</Text>
 
             <View style={styles.summaryCard}>
               <Text style={styles.sumRow}>
@@ -1620,16 +1614,16 @@ export default function ReserveScreen() {
                   : "—"}
               </Text>
 
-              <Text style={styles.sumRow}>Lieu : LAPS Library (studio complet)</Text>
+              <Text style={styles.sumRow}>{t("msg.location_laps")}</Text>
 
-              <Text style={styles.sumPrice}>Prix : 440€</Text>
+              <Text style={styles.sumPrice}>{t("msg.price_440")}</Text>
             </View>
 
-            <Text style={styles.terms}>_Studio entier, matériel inclus, de 9 h à 23 h.</Text>
+            <Text style={styles.terms}>{t("ttl.full_studio")}</Text>
 
-            <Text style={styles.terms}>_Paiement en ligne sécurisé (Stripe).</Text>
+            <Text style={styles.terms}>{t("ttl.secure_payment")}</Text>
 
-            {cta("Confirmer et payer", !!privatDate, confirmPrivat)}
+            {cta(t("lbl.confirm_pay"), !!privatDate, confirmPrivat)}
 
             {msg ? <Text style={styles.msg}>{msg}</Text> : null}
           </View>

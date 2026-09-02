@@ -1,9 +1,9 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { supabase } from "../lib/supabase";
 import BackButton from "../components/BackButton";
-
 type Item = {
   id: string;
   name: string;
@@ -14,6 +14,7 @@ type Item = {
 };
 
 export default function StationsScreen() {
+  const { t } = useLang();
   const [all, setAll] = useState<Item[]>([]);
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -36,7 +37,7 @@ export default function StationsScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Inventaire par poste</Text>
+        <Text style={styles.title}>{t("ttl.inventory")}</Text>
         {stations.map((s) => {
           const items = all.filter((i) => i.station === s);
           const isOpen = !!open[s];

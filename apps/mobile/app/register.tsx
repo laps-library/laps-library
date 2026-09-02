@@ -1,3 +1,5 @@
+import { useLang } from "../lib/i18n";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import {
@@ -21,6 +23,7 @@ const isFounder = (p: any) => p.code === "founding_member" || /fondateur/i.test(
 const isLocked = (p: any) => /pro|nerd/i.test(p.name);
 
 export default function RegisterScreen() {
+  const { t, lang } = useLang();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -110,26 +113,27 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
+        <LanguageSwitcher />
         <Image source={require("../assets/logo.png")} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.subtitle}>Inscription</Text>
+        <Text style={styles.subtitle}>{t("msg.signup")}</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Prénom"
+          placeholder={t("plh.first_name")}
           placeholderTextColor="#8e8e93"
           value={firstName}
           onChangeText={setFirstName}
         />
         <TextInput
           style={styles.input}
-          placeholder="Nom"
+          placeholder={t("plh.name")}
           placeholderTextColor="#8e8e93"
           value={lastName}
           onChangeText={setLastName}
         />
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t("plh.email")}
           placeholderTextColor="#8e8e93"
           autoCapitalize="none"
           keyboardType="email-address"
@@ -138,7 +142,7 @@ export default function RegisterScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Téléphone"
+          placeholder={t("plh.phone")}
           placeholderTextColor="#8e8e93"
           keyboardType="phone-pad"
           value={phone}
@@ -146,14 +150,14 @@ export default function RegisterScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Mot de passe"
+          placeholder={t("plh.password")}
           placeholderTextColor="#8e8e93"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
 
-        <Text style={styles.planTitle}>_Ta formule</Text>
+        <Text style={styles.planTitle}>{t("ttl.your_plan")}</Text>
         {plans.filter((p) => !isFounder(p)).map((p) => {
           const locked = isLocked(p);
           return (
@@ -173,26 +177,26 @@ export default function RegisterScreen() {
             >
               <View style={styles.planHeaderRow}>
                 <Text style={styles.planName}>{p.name}</Text>
-                {locked && <Text style={styles.comingSoon}>Bientôt disponible</Text>}
+                {locked && <Text style={styles.comingSoon}>{t("msg.soon")}</Text>}
               </View>
               <Text style={styles.planPrice}>
                 {p.price_cents != null && p.price_cents > 0
-                  ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? "an" : "mois"}`
-                  : "Gratuit"}
+                  ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? (lang === "en" ? "year" : "an") : (lang === "en" ? "month" : "mois")}`
+                  : (lang === "en" ? "Free" : "Gratuit")}
               </Text>
-              {p.features ? <Text style={styles.planFeatures}>{p.features}</Text> : null}
+              {p.features ? <Text style={styles.planFeatures}>{lang === "en" && p.features_en ? p.features_en : p.features}</Text> : null}
             </TouchableOpacity>
           );
         })}
 
         {error && <Text style={styles.error}>{error}</Text>}
 
-        <AppButton label={loading ? "Création..." : "Créer mon compte"} onPress={handleRegister} />
+        <AppButton label={loading ? t("lbl.creating") : t("lbl.create_account")} onPress={handleRegister} />
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Déjà un compte ?</Text>
+          <Text style={styles.footerText}>{t("msg.have_account")}</Text>
           <Link href="/login" style={styles.link}>
-            _Se connecter
+            {t("lbl.login_link")}
           </Link>
         </View>
       </ScrollView>

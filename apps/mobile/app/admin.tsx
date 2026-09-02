@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Button, Linking, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -7,6 +8,7 @@ import AppButton from "../components/AppButton";
 import BackButton from "../components/BackButton";
 
 export default function AdminScreen() {
+  const { t } = useLang();
   const [pendingIds, setPendingIds] = useState<any[]>([]);
   const [pendingVal, setPendingVal] = useState<any[]>([]);
   const [todayRes, setTodayRes] = useState<any[]>([]);
@@ -205,15 +207,15 @@ export default function AdminScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Administration</Text>
+        <Text style={styles.title}>{t("ttl.administration")}</Text>
 
-        <AppButton label="Comptes" onPress={() => router.push("/admin-accounts")} />
-        <AppButton label="Inventaire par poste" onPress={() => router.push("/stations")} />
-        <AppButton label="Photos & manuels" onPress={() => router.push("/admin-media")} />
-        <AppButton label="Publier une actualité" onPress={() => router.push("/admin-news")} />
-        <AppButton label="Calendrier global" onPress={() => router.push("/admin-calendar")} />
+        <AppButton label={t("lbl.accounts")} onPress={() => router.push("/admin-accounts")} />
+        <AppButton label={t("lbl.inventory_by_station")} onPress={() => router.push("/stations")} />
+        <AppButton label={t("lbl.photos_manuals")} onPress={() => router.push("/admin-media")} />
+        <AppButton label={t("lbl.publish_news")} onPress={() => router.push("/admin-news")} />
+        <AppButton label={t("lbl.global_calendar")} onPress={() => router.push("/admin-calendar")} />
         <Text style={styles.section}>Pièces à vérifier ({pendingIds.length})</Text>
-        {pendingIds.length === 0 && <Text style={styles.empty}>Aucune.</Text>}
+        {pendingIds.length === 0 && <Text style={styles.empty}>{t("msg.none_2")}</Text>}
         {pendingIds.map((p) => (
           <View key={p.id} style={styles.card}>
             <Text style={styles.name}>
@@ -221,14 +223,14 @@ export default function AdminScreen() {
             </Text>
             <Text style={styles.info}>{p.email}</Text>
             <View style={styles.row}>
-              <Button title="Voir" color="#60a5fa" onPress={() => viewDoc(p.id_document_url)} />
+              <Button title={t("lbl.view")} color="#60a5fa" onPress={() => viewDoc(p.id_document_url)} />
               <Button
-                title="Valider"
+                title={t("lbl.validate")}
                 color="#ff2bd6"
                 onPress={() => setIdStatus(p.id, "verified")}
               />
               <Button
-                title="Refuser"
+                title={t("lbl.refuse")}
                 color="#f87171"
                 onPress={() => setIdStatus(p.id, "rejected")}
               />
@@ -237,7 +239,7 @@ export default function AdminScreen() {
         ))}
 
         <Text style={styles.section}>Créneaux supervisés à valider ({pendingVal.length})</Text>
-        {pendingVal.length === 0 && <Text style={styles.empty}>Aucun.</Text>}
+        {pendingVal.length === 0 && <Text style={styles.empty}>{t("msg.none")}</Text>}
         {pendingVal.map((r) => (
           <View key={r.id} style={styles.card}>
             <Text style={styles.name}>
@@ -250,9 +252,9 @@ export default function AdminScreen() {
                 : r.workstations?.name}
             </Text>
             <View style={styles.row}>
-              <Button title="Valider" color="#ff2bd6" onPress={() => validateSupervised(r.id)} />
+              <Button title={t("lbl.validate")} color="#ff2bd6" onPress={() => validateSupervised(r.id)} />
               <Button
-                title="Refuser"
+                title={t("lbl.refuse")}
                 color="#f87171"
                 onPress={() => setResStatus(r.id, "cancelled")}
               />
@@ -261,11 +263,11 @@ export default function AdminScreen() {
         ))}
 
         <Text style={styles.section}>Prêts ({loans.length})</Text>
-        {loans.length === 0 && <Text style={styles.empty}>Aucun prêt actif.</Text>}
+        {loans.length === 0 && <Text style={styles.empty}>{t("msg.no_active_loan_2")}</Text>}
         {loans.map((l) => (
           <View key={l.id} style={styles.card}>
             <Text style={styles.name}>
-              {l.physical_units?.instrument_models?.name || "Instrument"}
+              {l.physical_units?.instrument_models?.name || t("msg.instrument")}
             </Text>
             <Text style={styles.info}>
               {l.profiles?.first_name} {l.profiles?.last_name}
@@ -288,17 +290,17 @@ export default function AdminScreen() {
             )}
             {l.status === "requested" ? (
               <View style={styles.row}>
-                <Button title="Valider" color="#ff2bd6" onPress={() => startLoan(l.id)} />
-                <Button title="Refuser" color="#f87171" onPress={() => refuseLoan(l.id)} />
+                <Button title={t("lbl.validate")} color="#ff2bd6" onPress={() => startLoan(l.id)} />
+                <Button title={t("lbl.refuse")} color="#f87171" onPress={() => refuseLoan(l.id)} />
               </View>
             ) : l.status === "active" ? (
-              <Button title="Retour" color="#f87171" onPress={() => returnLoan(l.id)} />
+              <Button title={t("lbl.back")} color="#f87171" onPress={() => returnLoan(l.id)} />
             ) : null}
           </View>
         ))}
 
         <Text style={styles.section}>Réservations du jour ({todayRes.length})</Text>
-        {todayRes.length === 0 && <Text style={styles.empty}>Aucune.</Text>}
+        {todayRes.length === 0 && <Text style={styles.empty}>{t("msg.none_2")}</Text>}
         {todayRes.map((r) => (
           <View key={r.id} style={styles.card}>
             <Text style={styles.name}>

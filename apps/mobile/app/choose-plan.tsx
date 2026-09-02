@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AppState, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -14,6 +15,7 @@ const isFreePlan = (p: any) => p.price_cents === 0 || /newbie/i.test(p.name);
 const isFounderPlan = (p: any) => p.code === "founding_member" || /fondateur/i.test(p.name);
 
 export default function ChoosePlanScreen() {
+  const { t } = useLang();
   const [plans, setPlans] = useState<any[]>([]);
   const [current, setCurrent] = useState<any>(null);
   const [uid, setUid] = useState<string | null>(null);
@@ -102,29 +104,29 @@ export default function ChoosePlanScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Gérer ma formule</Text>
+        <Text style={styles.title}>{t("ttl.manage_plan")}</Text>
         <Text style={styles.hint}>Formule actuelle : {current?.name ?? "aucune"}</Text>
-        <Text style={styles.info}>Les abonnements annuels seront effectifs à partir de fin 2026 lors de l'ouverture.</Text>
+        <Text style={styles.info}>{t("msg.annual_subs")}</Text>
 
         {upgrades.map((p) => {
           const isFounder = isFounderPlan(p);
           return (
             <View key={p.id} style={[styles.card, isFounder && styles.cardFounder]}>
-              {isFounder && <Text style={styles.founderBadgeTop}>⭐ OFFRE LIMITÉE ⭐</Text>}
+              {isFounder && <Text style={styles.founderBadgeTop}>{t("ttl.limited_offer")}</Text>}
               <View style={styles.headerRow}>
                 <Text style={styles.name}>{p.name}</Text>
-                {isFounder && <Text style={styles.badge}>⏰ JUSQU'AU 31/10</Text>}
+                {isFounder && <Text style={styles.badge}>{t("ttl.until_31_10")}</Text>}
               </View>
               
               {isFounder ? (
                 <View style={styles.founderPriceContainer}>
-                  <Text style={styles.priceLabel}>Tarif exclusif</Text>
+                  <Text style={styles.priceLabel}>{t("msg.exclusive_rate")}</Text>
                   <Text style={styles.priceBold}>
                     {p.price_cents != null && p.price_cents > 0
                       ? `${(p.price_cents / 100).toFixed(2)} € / ${p.price_period === "year" ? "an" : "mois"}`
                       : "Gratuit"}
                   </Text>
-                  <Text style={styles.deadline}>Offre limitée - Expire le 31 octobre 2026</Text>
+                  <Text style={styles.deadline}>{t("msg.limited_offer_expire")}</Text>
                 </View>
               ) : (
                 <Text style={styles.price}>
@@ -143,7 +145,7 @@ export default function ChoosePlanScreen() {
                 </Text>
               )}
               <AppButton
-                label={/pro|nerd/i.test(p.name) ? "Bientôt disponible" : (loading === p.id ? "..." : "Upgrader")}
+                label={/pro|nerd/i.test(p.name) ? t("msg.soon") : (loading === p.id ? "..." : "Upgrader")}
                 fontSize={14}
                 onPress={/pro|nerd/i.test(p.name) ? (() => {}) : (() => choose(p))}
                 style={/pro|nerd/i.test(p.name) ? styles.buttonDisabled : undefined}
@@ -152,15 +154,15 @@ export default function ChoosePlanScreen() {
           );
         })}
         {upgrades.length === 0 && (
-          <Text style={styles.hint}>_Aucun upgrade disponible au-dessus de ta formule.</Text>
+          <Text style={styles.hint}>{t("ttl.no_upgrade")}</Text>
         )}
 
         {canCancel && (
           <AppButton
-            label="Résilier mon abonnement"
+            label={t("lbl.cancel_subscription")}
             onPress={() =>
               Alert.alert("Résilier", "Tu repasseras à la formule gratuite immédiatement.", [
-                { text: "Annuler", style: "cancel" },
+                { text: t("msg.cancel"), style: "cancel" },
                 { text: "Résilier", style: "destructive", onPress: cancel },
               ])
             }
@@ -168,7 +170,7 @@ export default function ChoosePlanScreen() {
         )}
 
         <AppButton
-          label="Conditions générales de vente"
+          label={t("lbl.terms")}
           fontSize={12}
           onPress={() => router.push("/cgv")}
         />

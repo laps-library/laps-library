@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import {
   Image,
@@ -13,9 +14,9 @@ import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
-import BackButton from "../components/BackButton";
 
 export default function NewsScreen() {
+  const { t, lang } = useLang();
   const [items, setItems] = useState<any[]>([]);
   const [role, setRole] = useState("client");
   const [fullscreen, setFullscreen] = useState<string | null>(null);
@@ -39,22 +40,20 @@ export default function NewsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Actualités</Text>
-        {items.length === 0 && <Text style={styles.empty}>Aucune actualité.</Text>}
+        {items.length === 0 && <Text style={styles.empty}>{t("msg.no_news")}</Text>}
         {items.map((n) => (
           <View key={n.id} style={styles.card}>
-            <Text style={styles.name}>{n.title}</Text>
-            <Text style={styles.date}>{new Date(n.created_at).toLocaleDateString("fr-FR")}</Text>
+            <Text style={styles.name}>{lang === "en" && n.title_en ? n.title_en : n.title}</Text>
+            <Text style={styles.date}>{new Date(n.created_at).toLocaleDateString(lang === "en" ? "en-GB" : "fr-FR")}</Text>
             {n.image_url ? (
               <TouchableOpacity onPress={() => setFullscreen(n.image_url)}>
                 <Image source={{ uri: n.image_url }} style={styles.img} resizeMode="contain" />
               </TouchableOpacity>
             ) : null}
-            <Text style={styles.body}>{n.body}</Text>
+            <Text style={styles.body}>{lang === "en" && n.body_en ? n.body_en : n.body}</Text>
             {role !== "client" && (
-              <AppButton label="Modifier" onPress={() => router.push(`/edit-news/${n.id}`)} />
+              <AppButton label={t("lbl.edit")} onPress={() => router.push(`/edit-news/${n.id}`)} />
             )}
           </View>
         ))}
@@ -64,7 +63,7 @@ export default function NewsScreen() {
         <View style={styles.full}>
           <Image source={{ uri: fullscreen ?? "" }} style={styles.fullImg} resizeMode="contain" />
           <TouchableOpacity onPress={() => setFullscreen(null)} style={styles.close}>
-            <Text style={styles.closeTxt}>_Fermer</Text>
+            <Text style={styles.closeTxt}>{t("ttl.close")}</Text>
           </TouchableOpacity>
         </View>
       </Modal>

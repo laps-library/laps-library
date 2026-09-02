@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -9,6 +10,7 @@ const dstr = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export default function AdminCalendarScreen() {
+  const { t } = useLang();
   const [week, setWeek] = useState(0);
   const [slots, setSlots] = useState<any[]>([]);
   const [capacity, setCapacity] = useState(1);
@@ -84,23 +86,23 @@ export default function AdminCalendarScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Calendrier global</Text>
+        <Text style={styles.title}>{t("ttl.global_cal")}</Text>
         <View style={styles.nav}>
-          <AppButton label="‹ Semaine préc." fontSize={12} onPress={() => setWeek(week - 1)} />
-          <AppButton label="Semaine suiv. ›" fontSize={12} onPress={() => setWeek(week + 1)} />
+          <AppButton label={t("lbl.prev_week")} fontSize={12} onPress={() => setWeek(week - 1)} />
+          <AppButton label={t("lbl.next_week")} fontSize={12} onPress={() => setWeek(week + 1)} />
         </View>
         <Text style={styles.range}>
           {dstr(days[0])} → {dstr(days[6])} · capacité {capacity} postes
         </Text>
 
-        <Text style={styles.subTitle}>_Créneaux sur place</Text>
+        <Text style={styles.subTitle}>{t("ttl.onsite_slots")}</Text>
         <View style={styles.legend}>
           <View style={[styles.dot, { backgroundColor: "#22c55e" }]} />
-          <Text style={styles.legendTxt}>Libre</Text>
+          <Text style={styles.legendTxt}>{t("msg.free")}</Text>
           <View style={[styles.dot, { backgroundColor: "#f59e0b" }]} />
-          <Text style={styles.legendTxt}>Partiel</Text>
+          <Text style={styles.legendTxt}>{t("msg.partial")}</Text>
           <View style={[styles.dot, { backgroundColor: "#ef4444" }]} />
-          <Text style={styles.legendTxt}>Complet</Text>
+          <Text style={styles.legendTxt}>{t("msg.full")}</Text>
         </View>
         {days.map((d) => (
           <View key={dstr(d)} style={styles.day}>
@@ -128,10 +130,10 @@ export default function AdminCalendarScreen() {
           </View>
         ))}
 
-        <Text style={[styles.subTitle, { marginTop: 24 }]}>_Emprunts d'instruments</Text>
+        <Text style={[styles.subTitle, { marginTop: 24 }]}>{t("ttl.instrument_loans")}</Text>
         <View style={styles.legend}>
           <View style={[styles.dot, { backgroundColor: "#a855f7" }]} />
-          <Text style={styles.legendTxt}>Emprunts actifs</Text>
+          <Text style={styles.legendTxt}>{t("msg.active_loans")}</Text>
         </View>
         {days.map((d) => {
           const n = loanCounts[dstr(d)] ?? 0;

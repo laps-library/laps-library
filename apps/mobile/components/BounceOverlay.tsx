@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { Dimensions, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,7 +8,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { encode } from "base64-arraybuffer";
 import {
-  addLife,
+addLife,
   addPoints,
   clearOver,
   endGame,
@@ -250,6 +251,7 @@ const BlocksLayer = React.memo(
 );
 
 export default function BounceOverlay() {
+  const { t } = useLang();
   const [balls, setBalls] = useState<Ball[]>([]);
   const [drops, setDrops] = useState<Drop[]>([]);
   const ballsRef = useRef<Ball[]>([]);
@@ -618,7 +620,7 @@ export default function BounceOverlay() {
             flashMsg("RALENTI");
           } else if (kind === "fire") {
             fx2.fireUntil = now + 5000;
-            flashMsg("FEU");
+            flashMsg(t("msg.fire"));
           } else if (kind === "shrink") {
             fx2.shrinkUntil = now + 8000;
             fx2.wideUntil = 0;
@@ -745,7 +747,7 @@ export default function BounceOverlay() {
           <Text style={styles.hudLives}>♥{game.lives}</Text>
           <Text style={styles.hudLevel}>N{game.level}</Text>
           <Text style={styles.hudMult}>x{game.mult.toFixed(1)}</Text>
-          {fireNow && <Text style={styles.hudFire}>FEU</Text>}
+          {fireNow && <Text style={styles.hudFire}>{t("msg.fire")}</Text>}
         </View>
       )}
       {game.active && (
@@ -756,12 +758,12 @@ export default function BounceOverlay() {
             setBallInteraction(false);
           }}
         >
-          <Text style={styles.quitBtnText}>QUITTER</Text>
+          <Text style={styles.quitBtnText}>{t("msg.leave")}</Text>
         </Pressable>
       )}
       {game.active && hasStuck && (
         <View style={styles.hint}>
-          <Text style={styles.hintText}>TOUCHE POUR LANCER LA BALLE</Text>
+          <Text style={styles.hintText}>{t("msg.tap_to_launch")}</Text>
         </View>
       )}
       {noteLabels.current

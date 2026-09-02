@@ -1,3 +1,4 @@
+import { useLang } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -7,6 +8,7 @@ import AppButton from "../../components/AppButton";
 import BackButton from "../../components/BackButton";
 
 export default function ForumThreadScreen() {
+  const { t } = useLang();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [thread, setThread] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
@@ -62,18 +64,18 @@ export default function ForumThreadScreen() {
           </View>
         ))}
 
-        <Text style={styles.label}>_Répondre</Text>
+        <Text style={styles.label}>{t("ttl.reply")}</Text>
         <TextInput
           style={[styles.input, styles.reply]}
           value={reply}
           onChangeText={setReply}
-          placeholder="Ta réponse..."
+          placeholder={t("plh.your_answer")}
           placeholderTextColor="#8e8e93"
           multiline
           numberOfLines={3}
           textAlignVertical="top"
         />
-        <AppButton label="Envoyer" onPress={send} />
+        <AppButton label={t("lbl.send")} onPress={send} />
         {msg ? <Text style={styles.meta}>{msg}</Text> : null}
       </ScrollView>
       <StatusBar style="light" />

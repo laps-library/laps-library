@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as WebBrowser from "expo-web-browser";
 import * as ExpoLinking from "expo-linking";
@@ -23,11 +24,11 @@ import { supabase } from "../lib/supabase";
 import Bounceable from "../components/Bounceable";
 import { setBallInteraction } from "../components/BounceOverlay";
 import { onBannerSwipeUp, onBannerHeight, setBannerMenuOpen } from "../components/MiniPlayer";
+import { onMenuEvent } from "../lib/menuEvents";
 import { configureBallMusic, noteName, SCALE_NAMES, setWallMode } from "../components/ballAudio";
 import { startGame, endGame, onGameStateChange, setScoreSave } from "../components/ballGame";
 import { GIF_TOP, HOME_GIF, HOME_H, HOME_W, W } from "../components/gifLayout";
 import { ScrollView as GHScrollView } from "react-native-gesture-handler";
-
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView) as any;
 
 function MenuCoverflow({
@@ -177,6 +178,7 @@ function MenuCoverflow({
 }
 
 export default function HomeScreen() {
+  const { t } = useLang();
   const [supervisedPending, setSupervisedPending] = useState<any>(null);
   const insets = useSafeAreaInsets();
   const [role, setRole] = useState("client");
@@ -207,6 +209,18 @@ export default function HomeScreen() {
   }
 
   useEffect(() => onBannerSwipeUp(openMenu), []);
+  const toggleBallModeRef = useRef(toggleBallMode);
+  useEffect(() => {
+    toggleBallModeRef.current = toggleBallMode;
+  });
+  useEffect(
+    () =>
+      onMenuEvent("toggleBallMode", () => {
+        console.log("🎮 home a reçu toggleBallMode");
+        toggleBallModeRef.current();
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!showScaleBubble) return;
@@ -348,9 +362,6 @@ export default function HomeScreen() {
   }
 
   const menuItems = [
-    ...(role !== "client"
-      ? [{ label: "_Administration", action: () => router.push("/admin"), active: false }]
-      : []),
     { label: "_Catalogue", action: () => router.push("/catalog"), active: false },
     { label: "_Réserver", action: () => router.push("/reserve"), active: false },
     { label: "_Mon profil", action: () => router.push("/profile"), active: false },
@@ -405,10 +416,64 @@ export default function HomeScreen() {
       )}
       <StatusBar style="light" />
 
-      {!ballMode && (
-        <View style={styles.carouselFrame}>
-          <MenuCoverflow items={menuItems} />
-        </View>
+      <Pressable
+        onPress={toggleBallMode}
+        style={{
+          position: "absolute",
+          right: 16,
+          bottom: 16,
+          borderWidth: 1,
+          borderColor: "#ff2bd6",
+          backgroundColor: "#000",
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderRadius: 20,
+          zIndex: 50,
+        }}
+      >
+        <Text
+          style={{
+            color: "#ff2bd6",
+            fontWeight: "bold",
+            fontStyle: "italic",
+            fontSize: 12,
+            letterSpacing: 0.5,
+            textTransform: "uppercase",
+          }}
+        >
+          {ballMode ? "_Stop" : "_Play"}
+        </Text>
+      </Pressable>
+
+      {role !== "client" && (
+        <Pressable
+          onPress={() => router.push("/admin")}
+          style={{
+            position: "absolute",
+            left: 16,
+            bottom: 16,
+            borderWidth: 1,
+            borderColor: "#ff2bd6",
+            backgroundColor: "#000",
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 20,
+            zIndex: 50,
+          }}
+        >
+          <Text
+            style={{
+              color: "#ff2bd6",
+              fontWeight: "bold",
+              fontStyle: "italic",
+              fontSize: 12,
+              letterSpacing: 0.5,
+              textTransform: "uppercase",
+            }}
+          >
+            {t("ttl.administration")}
+          </Text>
+        </Pressable>
       )}
 
       {showScaleBubble && (
@@ -418,7 +483,7 @@ export default function HomeScreen() {
             {bubblePage === 1 && (
               <View>
             <View style={styles.bubbleCard}>
-            <Text style={styles.setLabel}>_Fondamentale</Text>
+            <Text style={styles.setLabel}>{t("ttl.root")}</Text>
             <View style={styles.bubbleRootRow}>
               <Pressable style={styles.bubbleRootBtn} onPress={() => changeMusicRoot(-1)}>
                 <Text style={styles.bubbleRootBtnText}>-</Text>
@@ -429,7 +494,7 @@ export default function HomeScreen() {
               </Pressable>
             </View>
             <View style={styles.setSep} />
-            <Text style={styles.setLabel}>_Mélodie des murs</Text>
+            <Text style={styles.setLabel}>{t("ttl.wall_melody")}</Text>
             <View style={styles.bubbleRow}>
               {(["sequence", "random"] as const).map((m) => (
                 <Pressable
@@ -447,7 +512,7 @@ export default function HomeScreen() {
               ))}
             </View>
             <View style={styles.setSep} />
-            <Text style={styles.setLabel}>_Gamme</Text>
+            <Text style={styles.setLabel}>{t("ttl.scale")}</Text>
             <View style={styles.bubbleRow}>
               {SCALE_NAMES.map((s) => (
                 <Pressable
@@ -466,26 +531,26 @@ export default function HomeScreen() {
             )}
             {bubblePage === 0 && (
               <View>
-                <Text style={styles.bubbleTitle}>COMMENT JOUER</Text>
+                <Text style={styles.bubbleTitle}>{t("msg.how_to_play")}</Text>
                 <View style={styles.bubbleCard}>
-                  <Text style={styles.bubbleLine}>- Touche l'écran : lancer la balle</Text>
-                  <Text style={styles.bubbleLine}>- Glisse le doigt : déplacer la raquette</Text>
-                  <Text style={styles.bubbleLine}>- Touche une balle en jeu : la démultiplie (1 à 3)</Text>
-                  <Text style={styles.bubbleLine}>- Bloc blanc : +1 balle · Bloc plein : 2 coups</Text>
-                  <Text style={styles.bubbleLine}>- Rangée complète : arpège + bonus</Text>
-                  <Text style={styles.bubbleLine}>- Capsules : R+ large · RA ralenti · FEU traverse · x3 multi · +1 vie · R- piège</Text>
-                  <Text style={styles.bubbleLine}>- Combo : enchaîne les blocs sans rater, la balle accélère</Text>
-                  <Text style={styles.bubbleLine}>- Balle ratée : -1 vie · 30 s par niveau</Text>
-                  <Text style={styles.bubbleLine}>- Murs : mélodie de la gamme (séquence ou aléatoire)</Text>
-                  <Text style={styles.bubbleLine}>- Fin de partie : ta musique peut être enregistrée en .mid via la feuille de partage</Text>
-                  <Text style={styles.bubbleLine}>- Choisis si ton score entre au classement</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.tap_screen")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.slide_finger")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.touch_ball")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.white_block")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.full_row")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.capsules")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.combo")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.missed_ball")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.walls")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.end_game")}</Text>
+                  <Text style={styles.bubbleLine}>{t("msg.choose_score")}</Text>
                 </View>
               </View>
             )}
             {bubblePage === 1 && (
               <View>
             <View style={styles.bubbleCard}>
-            <Text style={styles.setLabel}>_Mon score</Text>
+            <Text style={styles.setLabel}>{t("ttl.my_score")}</Text>
             <View style={styles.bubbleRow}>
               {([true, false] as const).map((v) => (
                 <Pressable
@@ -507,9 +572,9 @@ export default function HomeScreen() {
             )}
             {bubblePage === 2 && (
               <View>
-            <Text style={styles.bubbleTitle}>CLASSEMENT</Text>
+            <Text style={styles.bubbleTitle}>{t("msg.ranking_up")}</Text>
             {topScores.length === 0 ? (
-              <Text style={styles.bubbleHelp}>Aucun score enregistre. Sois le premier !</Text>
+              <Text style={styles.bubbleHelp}>{t("msg.no_score")}</Text>
             ) : (
               <View style={{ gap: 3 }}>
                 {topScores.map((s: any, i: number) => (
@@ -530,7 +595,7 @@ export default function HomeScreen() {
             )}
             </ScrollView>
             <View style={styles.bubbleTabs}>
-              {["REGLES", "REGLAGES", "CLASSEMENT"].map((t, i) => (
+              {["REGLES", "REGLAGES", t("msg.ranking_up")].map((t, i) => (
                 <Pressable
                   key={t}
                   style={[styles.bubbleTab, bubblePage === i && styles.bubbleTabActive]}
@@ -544,10 +609,10 @@ export default function HomeScreen() {
             </View>
             <View style={styles.bubbleActions}>
               <Pressable style={styles.bubbleStart} onPress={startBallGame}>
-                <Text style={styles.bubbleStartText}>JOUER</Text>
+                <Text style={styles.bubbleStartText}>{t("msg.play")}</Text>
               </Pressable>
               <Pressable style={styles.bubbleClose} onPress={() => setShowScaleBubble(false)}>
-                <Text style={styles.bubbleCloseText}>FERMER</Text>
+                <Text style={styles.bubbleCloseText}>{t("msg.close_up")}</Text>
               </Pressable>
             </View>
           </View>

@@ -38,6 +38,17 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
 
+  soonBadge: {
+    marginTop: 8,
+    color: "#8e8e93",
+    fontWeight: "bold",
+    fontStyle: "italic",
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    textAlign: "center",
+  },
+
   stepBoxGrow: {
     flex: 1,
   },

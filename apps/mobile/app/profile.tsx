@@ -1,3 +1,5 @@
+import { useLang } from "../lib/i18n";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -15,7 +17,6 @@ import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { supabase } from "../lib/supabase";
 import AppButton from "../components/AppButton";
-import BackButton from "../components/BackButton";
 import * as ExpoLinking from "expo-linking";
 
 async function doLogout() {
@@ -24,6 +25,43 @@ async function doLogout() {
 }
 
 export default function ProfileScreen() {
+  const { t, lang } = useLang();
+  function fmtHour(h) {
+    const n = parseInt(h, 10);
+    const ampm = n >= 12 ? "pm" : "am";
+    let hh = n % 12;
+    if (hh === 0) hh = 12;
+    return hh + ampm;
+  }
+
+  function trSlotName(name) {
+    if (!name) return name;
+    if (lang === "en") {
+      return String(name)
+        .replace(/Créneau/g, "Slot")
+        .replace(/(\d{1,2})h à (\d{1,2})h/g, (m, a, b) => fmtHour(a) + " to " + fmtHour(b));
+    }
+    return name;
+  }
+
+
+
+  function translateNotifTitle(title) {
+    if (lang === "fr") return title;
+    if (title === "Votre emprunt a été validé !") return t("notif.loan_approved_title");
+    return title;
+  }
+
+  function translateNotifMessage(msg) {
+    if (lang === "fr") return msg;
+    const match = msg.match(/Votre emprunt commence le (.+?) et se termine le (.+?)\./);
+    if (match) {
+      return t("notif.loan_approved_msg") + match[1] + t("notif.loan_approved_msg_mid") + match[2] + t("notif.loan_approved_msg_end");
+    }
+    return msg;
+  }
+
+
   const [profile, setProfile] = useState<any>(null);
   const [pseudo, setPseudo] = useState("");
   const [plan, setPlan] = useState<any>(null);
@@ -324,7 +362,7 @@ export default function ProfileScreen() {
 
   const statusLabel = (s: string | null) =>
     s === "verified"
-      ? "Vérifiée"
+      ? t("prof.verified")
       : s === "rejected"
         ? "Refusée"
         : s === "pending"
@@ -333,14 +371,14 @@ export default function ProfileScreen() {
 
   const isFree = plan && (plan.price_cents === 0 || /gratuite|newbie/i.test(plan.name));
   const validity = profile?.subscription_expires_at
-    ? `Valable jusqu'au ${new Date(profile.subscription_expires_at).toLocaleDateString("fr-FR")}`
+    ? `${t("prof.valid_until")}${new Date(profile.subscription_expires_at).toLocaleDateString(lang === "en" ? "en-GB" : "fr-FR")}`
     : isFree
       ? "Sans expiration"
       : "Activation en attente";
 
   async function handleDelete() {
-    Alert.alert("Supprimer mon compte", "Cette action est définitive.", [
-      { text: "Annuler", style: "cancel" },
+    Alert.alert(t("alert.delete_title"), t("alert.delete_msg"), [
+      { text: t("msg.cancel"), style: "cancel" },
       {
         text: "Supprimer",
         style: "destructive",
@@ -357,11 +395,11 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.headerRow}>
-          <View style={styles.headerSide} />
-          <Text style={styles.title}>_Mon profil</Text>
+          <View style={styles.headerSide}>
+            <LanguageSwitcher align="left" />
+          </View>
           <View style={[styles.headerSide, styles.headerSideRight]}>
             {plan ? <Text style={styles.planBadge}>{plan.name}</Text> : null}
           </View>
@@ -372,7 +410,7 @@ export default function ProfileScreen() {
             _Notifications ({notifications.filter((n) => !n.is_read).length})
           </Text>
           {notifications.length === 0 ? (
-            <Text style={styles.empty}>Aucune notification.</Text>
+            <Text style={styles.empty}>{t("msg.no_notification")}</Text>
           ) : (
             <View>
               {notifications.filter((n) => !n.is_read).length > 0 && (
@@ -381,7 +419,7 @@ export default function ProfileScreen() {
                   style={{ marginBottom: 8, alignSelf: "flex-end" }}
                 >
                   <Text style={{ color: "#ff2bd6", fontSize: 12, fontStyle: "italic" }}>
-                    Tout marquer comme lu
+                    {t("notif.mark_all_read")}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -415,7 +453,7 @@ export default function ProfileScreen() {
                         flex: 1,
                       }}
                     >
-                      {n.title}
+                      {translateNotifTitle(n.title)}
                     </Text>
                     {!n.is_read && (
                       <View
@@ -429,7 +467,7 @@ export default function ProfileScreen() {
                       />
                     )}
                   </View>
-                  <Text style={{ color: "#ccc", fontSize: 12, marginBottom: 4 }}>{n.message}</Text>
+                  <Text style={{ color: "#ccc", fontSize: 12, marginBottom: 4 }}>{translateNotifMessage(n.message)}</Text>
                   {n.type === "loan_approved" &&
                     n.data?.loan_id &&
                     !n.is_read &&
@@ -455,7 +493,7 @@ export default function ProfileScreen() {
                             letterSpacing: 1,
                           }}
                         >
-                          ✅ Emprunt confirmé et payé
+                          {t("notif.loan_confirmed_paid")}
                         </Text>
                       </View>
                     ) : (
@@ -484,7 +522,7 @@ export default function ProfileScreen() {
                       </TouchableOpacity>
                     ))}
                   <Text style={{ color: "#666", fontSize: 10, fontStyle: "italic", marginTop: 4 }}>
-                    {new Date(n.created_at).toLocaleDateString("fr-FR", {
+                    {new Date(n.created_at).toLocaleDateString(lang === "en" ? "en-GB" : "fr-FR", {
                       day: "numeric",
                       month: "short",
                       hour: "2-digit",
@@ -496,87 +534,87 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          <Text style={styles.section}>_Pseudo public</Text>
-          <Text style={styles.label}>_Affiché sur le forum</Text>
+          <Text style={styles.section}>{t("ttl.public_nickname")}</Text>
+          <Text style={styles.label}>{t("ttl.on_forum")}</Text>
           <TextInput
             style={styles.input}
             value={pseudo}
             onChangeText={setPseudo}
-            placeholder="Choisis un pseudo public"
+            placeholder={t("plh.public_nickname")}
             placeholderTextColor="#8e8e93"
             maxLength={30}
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <AppButton label="Enregistrer mon pseudo" onPress={savePseudo} />
+          <AppButton label={t("lbl.save_nickname")} onPress={savePseudo} />
 
-          <Text style={styles.section}>_Infos personnelles</Text>
-          <Text style={styles.label}>_Prénom</Text>
+          <Text style={styles.section}>{t("ttl.personal_info")}</Text>
+          <Text style={styles.label}>{t("ttl.first_name")}</Text>
           <Text style={styles.value}>{profile.first_name}</Text>
-          <Text style={styles.label}>_Nom</Text>
+          <Text style={styles.label}>{t("ttl.name")}</Text>
           <Text style={styles.value}>{profile.last_name}</Text>
-          <Text style={styles.label}>_Email</Text>
+          <Text style={styles.label}>{t("ttl.email")}</Text>
           <Text style={styles.value}>{profile.email}</Text>
-          <Text style={styles.label}>_Téléphone</Text>
+          <Text style={styles.label}>{t("ttl.phone")}</Text>
           <Text style={styles.value}>{profile.phone || "-"}</Text>
 
-          <Text style={styles.section}>_Mes créneaux</Text>
+          <Text style={styles.section}>{t("ttl.my_slots")}</Text>
           {reservations.length === 0 && (
-            <Text style={styles.empty}>Aucune réservation à venir.</Text>
+            <Text style={styles.empty}>{t("msg.no_upcoming_booking")}</Text>
           )}
           {reservations.map((r) => (
             <View key={r.id} style={styles.resCard}>
               <Text style={styles.line}>
                 _{" "}
-                {new Date(r.reservation_date).toLocaleDateString("fr-FR", {
+                {new Date(r.reservation_date).toLocaleDateString(lang === "en" ? "en-GB" : "fr-FR", {
                   weekday: "short",
                   day: "2-digit",
                   month: "short",
                 })}{" "}
-                · {r.time_slots?.name} ·{" "}
+                · {trSlotName(r.time_slots?.name)} ·{" "}
                 {r.instrument_models?.name
                   ? r.instrument_models.name.replace("Poste Premium — ", "")
                   : r.workstations?.name}
               </Text>
               {r.status === "pending_payment" && (
                 <>
-                  <Text style={styles.resStatus}>_En attente de paiement (10 min)</Text>
+                  <Text style={styles.resStatus}>{t("ttl.awaiting_payment")}</Text>
                   <View style={styles.resActions}>
                     <TouchableOpacity style={styles.resPayBtn} onPress={() => payReservation(r)}>
-                      <Text style={styles.resPayText}>PAYER</Text>
+                      <Text style={styles.resPayText}>{t("msg.pay")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.resCancelBtn} onPress={() => cancelReservation(r)}>
-                      <Text style={styles.resCancelText}>ANNULER</Text>
+                      <Text style={styles.resCancelText}>{t("msg.cancel_up")}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
               )}
             </View>
           ))}
-          <Text style={styles.section}>_Mes privatisations</Text>
+          <Text style={styles.section}>{t("ttl.my_privatizations")}</Text>
           {privatizations.length === 0 && (
-            <Text style={styles.empty}>Aucune privatisation.</Text>
+            <Text style={styles.empty}>{t("msg.no_privatization")}</Text>
           )}
           {privatizations.map((pz) => (
             <View key={pz.id} style={styles.resCard}>
               <Text style={styles.line}>
                 _{" "}
-                {new Date(pz.privat_date + "T12:00:00").toLocaleDateString("fr-FR", {
+                {new Date(pz.privat_date + "T12:00:00").toLocaleDateString(lang === "en" ? "en-GB" : "fr-FR", {
                   weekday: "short",
                   day: "2-digit",
                   month: "short",
                 })}{" "}
-                · Studio entier
+                · {t("prof.full_studio")}
               </Text>
               {pz.status === "pending_payment" && (
                 <>
-                  <Text style={styles.resStatus}>_En attente de paiement (10 min)</Text>
+                  <Text style={styles.resStatus}>{t("ttl.awaiting_payment")}</Text>
                   <View style={styles.resActions}>
                     <TouchableOpacity style={styles.resPayBtn} onPress={() => payPrivatization(pz)}>
-                      <Text style={styles.resPayText}>PAYER</Text>
+                      <Text style={styles.resPayText}>{t("msg.pay")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.resCancelBtn} onPress={() => cancelPrivatization(pz)}>
-                      <Text style={styles.resCancelText}>ANNULER</Text>
+                      <Text style={styles.resCancelText}>{t("msg.cancel_up")}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -585,13 +623,13 @@ export default function ProfileScreen() {
           ))}
 
           <AppButton
-            label="Gérer mes réservations"
+            label={t("lbl.manage_bookings")}
             fontSize={10}
             onPress={() => router.push("/my-reservations")}
           />
 
-          <Text style={styles.section}>_Mes emprunts</Text>
-          {loans.length === 0 && <Text style={styles.empty}>Aucun emprunt en cours.</Text>}
+          <Text style={styles.section}>{t("ttl.my_loans")}</Text>
+          {loans.length === 0 && <Text style={styles.empty}>{t("msg.no_active_loan")}</Text>}
           {loans.map((l) => {
             let statusText = l.status;
             if (l.status === "requested") {
@@ -604,9 +642,9 @@ export default function ProfileScreen() {
             return (
               <View key={l.id} style={styles.resCard}>
                 <Text style={styles.line}>
-                  _ {l.physical_units?.instrument_models?.name || "Instrument"} ·{" "}
+                  _ {l.physical_units?.instrument_models?.name || t("msg.instrument")} ·{" "}
                   {l.start_date
-                    ? new Date(l.start_date).toLocaleDateString("fr-FR", {
+                    ? new Date(l.start_date).toLocaleDateString(lang === "en" ? "en-GB" : "fr-FR", {
                         day: "numeric",
                         month: "short",
                       }) + " · "
@@ -615,13 +653,13 @@ export default function ProfileScreen() {
                 </Text>
                 {l.status === "requested" && l.payment_status === "unpaid" && (
                   <>
-                    <Text style={styles.resStatus}>_En attente de paiement (10 min)</Text>
+                    <Text style={styles.resStatus}>{t("ttl.awaiting_payment")}</Text>
                     <View style={styles.resActions}>
                       <TouchableOpacity style={styles.resPayBtn} onPress={() => payLoan(l)}>
-                        <Text style={styles.resPayText}>PAYER</Text>
+                        <Text style={styles.resPayText}>{t("msg.pay")}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.resCancelBtn} onPress={() => cancelLoan(l)}>
-                        <Text style={styles.resCancelText}>ANNULER</Text>
+                        <Text style={styles.resCancelText}>{t("msg.cancel_up")}</Text>
                       </TouchableOpacity>
                     </View>
                   </>
@@ -630,34 +668,34 @@ export default function ProfileScreen() {
             );
           })}
           <AppButton
-            label="Gérer mes emprunts"
+            label={t("lbl.manage_loans")}
             fontSize={10}
             onPress={() => router.push("/my-loans")}
           />
 
-          <Text style={styles.section}>_Mon abonnement</Text>
+          <Text style={styles.section}>{t("ttl.my_subscription")}</Text>
           <Text style={styles.value}>{validity}</Text>
           <AppButton
             label={
-              /nerd/i.test(plan?.name ?? "") ? "Résilier mon abonnement" : "Gérer mon abonnement"
+              /nerd/i.test(plan?.name ?? "") ? t("lbl.cancel_subscription") : t("prof.manage_subscription")
             }
             onPress={() => router.push("/choose-plan")}
           />
 
-          <Text style={styles.label}>_Pièce d'identité</Text>
+          <Text style={styles.label}>{t("ttl.id_document")}</Text>
           <Text style={styles.value}>{statusLabel(profile.id_document_status)}</Text>
           {!profile.id_document_url && (
             <AppButton label={uploading ? "Envoi..." : "Envoyer ma pièce"} onPress={pickDocument} />
           )}
           {profile.id_document_url && profile.id_document_status !== "verified" && (
-            <AppButton label="Renvoyer une pièce" onPress={pickDocument} />
+            <AppButton label={t("lbl.send_document")} onPress={pickDocument} />
           )}
-          {profile.id_document_url && <AppButton label="Voir ma pièce" onPress={viewDocument} />}
+          {profile.id_document_url && <AppButton label={t("lbl.view_document")} onPress={viewDocument} />}
 
-          <AppButton label="Supprimer mon compte" onPress={handleDelete} />
+          <AppButton label={t("lbl.delete_account")} onPress={handleDelete} />
         </View>
 
-        <AppButton label="Se déconnecter" onPress={doLogout} />
+        <AppButton label={t("lbl.logout")} onPress={doLogout} />
       </ScrollView>
       <StatusBar style="light" />
     </SafeAreaView>
@@ -697,7 +735,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   container: { flex: 1, backgroundColor: "#000" },
-  scroll: { padding: 24, gap: 12 },
+  scroll: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24, gap: 12 },
   title: {
     fontWeight: "bold",
     fontStyle: "italic",
@@ -707,7 +745,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textAlign: "center",
   },
-  headerRow: { flexDirection: "row", alignItems: "center", paddingBottom: 8 },
+  headerRow: { flexDirection: "row", alignItems: "center", paddingBottom: 0 },
   headerSide: { flex: 1 },
   headerSideRight: { alignItems: "flex-end" },
   planBadge: {

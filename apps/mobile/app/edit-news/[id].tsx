@@ -1,3 +1,4 @@
+import { useLang } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -9,9 +10,12 @@ import AppButton from "../../components/AppButton";
 import BackButton from "../../components/BackButton";
 
 export default function EditNewsScreen() {
+  const { t, lang } = useLang();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [titleEn, setTitleEn] = useState("");
+  const [bodyEn, setBodyEn] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -22,6 +26,8 @@ export default function EditNewsScreen() {
       if (data) {
         setTitle(data.title);
         setBody(data.body);
+        setTitleEn(data.title_en || "");
+        setBodyEn(data.body_en || "");
         setImageUrl(data.image_url);
       }
       setLoaded(true);
@@ -55,7 +61,7 @@ export default function EditNewsScreen() {
     }
     const { error } = await supabase
       .from("news")
-      .update({ title: title.trim(), body: body.trim(), image_url: imageUrl })
+      .update({ title: title.trim(), body: body.trim(), title_en: titleEn.trim() || null, body_en: bodyEn.trim() || null, image_url: imageUrl })
       .eq("id", id);
     if (error) Alert.alert("Erreur", error.message);
     else {
@@ -70,36 +76,57 @@ export default function EditNewsScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Modifier l'actualité</Text>
+        <Text style={styles.title}>{t("ttl.edit_news")}</Text>
 
-        <Text style={styles.label}>_Titre</Text>
+        <Text style={styles.label}>{t("ttl.title")}</Text>
         <TextInput
           style={styles.input}
           value={title}
           onChangeText={setTitle}
-          placeholder="Titre"
+          placeholder={t("plh.title")}
           placeholderTextColor="#8e8e93"
         />
 
-        <Text style={styles.label}>_Photo</Text>
-        <AppButton label={busy ? "Lecture..." : "Changer la photo"} onPress={pickImage} />
+        <Text style={styles.label}>{t("ttl.photo")}</Text>
+        <AppButton label={busy ? t("lbl.reading") : t("lbl.change_photo")} onPress={pickImage} />
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} style={styles.preview} resizeMode="contain" />
         ) : null}
 
-        <Text style={styles.label}>_Contenu</Text>
+        <Text style={styles.label}>{t("ttl.content")}</Text>
         <TextInput
           style={[styles.input, styles.body]}
           value={body}
           onChangeText={setBody}
-          placeholder="Contenu..."
+          placeholder={t("plh.content")}
           placeholderTextColor="#8e8e93"
           multiline
           numberOfLines={6}
           textAlignVertical="top"
         />
 
-        <AppButton label="Enregistrer" onPress={save} />
+        <Text style={styles.label}>{t("ttl.title_en")}</Text>
+        <TextInput
+          style={styles.input}
+          value={titleEn}
+          onChangeText={setTitleEn}
+          placeholder="Title (English)"
+          placeholderTextColor="#8e8e93"
+        />
+
+        <Text style={styles.label}>{t("ttl.body_en")}</Text>
+        <TextInput
+          style={[styles.input, styles.body]}
+          value={bodyEn}
+          onChangeText={setBodyEn}
+          placeholder="Body (English)"
+          placeholderTextColor="#8e8e93"
+          multiline
+          numberOfLines={6}
+          textAlignVertical="top"
+        />
+
+        <AppButton label={t("lbl.save")} onPress={save} />
       </ScrollView>
       <StatusBar style="light" />
     </SafeAreaView>

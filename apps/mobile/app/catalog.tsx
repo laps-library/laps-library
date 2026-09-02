@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
@@ -19,10 +20,8 @@ import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { LOCAL_PHOTOS } from "../assets/instruments/manifest";
 
 const AnimatedGHScrollView = Animated.createAnimatedComponent(GHScrollView) as any;
-import BackButton from "../components/BackButton";
 import { supabase } from "../lib/supabase";
 import { photoSource, stationPhotoSource, isAccessory } from "../lib/instrumentUtils";
-
 const SCREEN_W = Dimensions.get("window").width;
 const CARD_W = Math.round(Math.min(SCREEN_W * 0.66, 300));
 const CARD_H = 420;
@@ -93,7 +92,7 @@ function ScrollIndicator({ scrollRef }: { scrollRef: React.RefObject<any> }) {
       <Animated.Text style={[styles.scrollHintChevron, { transform: [{ translateY }] }]}>
         ↓
       </Animated.Text>
-      <Text style={styles.scrollHintText}>Faire défiler</Text>
+      <Text style={styles.scrollHintText}>{"Faire défiler"}</Text>
     </View>
   );
 }
@@ -218,11 +217,10 @@ function InfiniteCoverflow({
 }
 
 export default function CatalogScreen() {
+  const { t, lang } = useLang();
   const verticalScrollRef = useRef<any>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [tab, setTab] = useState("empruntable");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [typeOpen, setTypeOpen] = useState(false);
   const [showComing, setShowComing] = useState(false);
 
   useEffect(() => {
@@ -230,7 +228,7 @@ export default function CatalogScreen() {
       const { data, error } = await supabase
         .from("instrument_models")
         .select(
-          "id, name, brand, category, borrowable, year, synthesis_type, photo_url, ease_of_use, acquired, access_type, kind, package, units, sort_order, description",
+          "id, name, brand, category, borrowable, year, synthesis_type, photo_url, ease_of_use, acquired, access_type, kind, package, units, sort_order, description, description_en, synthesis_type_en",
         )
         .in("kind", ["instrument", "premium_station"])
         .order("brand")
@@ -249,7 +247,6 @@ export default function CatalogScreen() {
 
   useEffect(() => {
     setShowComing(false);
-    setTypeFilter("all");
   }, [tab]);
 
   const stations = rows
@@ -278,14 +275,6 @@ export default function CatalogScreen() {
 
   const currentStations = stations.filter((s) => s.acquired);
   const comingStations = stations.filter((s) => !s.acquired);
-
-  const filteredCurrentInstruments = currentInstruments.filter((i) =>
-    typeFilter === "all" ? true : i.category === typeFilter,
-  );
-
-  const filteredComingInstruments = comingInstruments.filter((i) =>
-    typeFilter === "all" ? true : i.category === typeFilter,
-  );
 
   function renderStationCardContent(s: Row, shouldLoadImage: boolean) {
     const packageLines = s.package ?? [];
@@ -358,19 +347,19 @@ export default function CatalogScreen() {
           {item.year ? ` · ${item.year}` : ""}
         </Text>
         {item.synthesis_type ? (
-          <Text style={styles.instrumentMeta}>{item.synthesis_type}</Text>
+          <Text style={styles.instrumentMeta}>{lang === "en" && item.synthesis_type_en ? item.synthesis_type_en : item.synthesis_type}</Text>
         ) : null}
-        {item.description ? <Text style={styles.instrumentDesc}>{item.description}</Text> : null}
+        {item.description ? <Text style={styles.instrumentDesc}>{lang === "en" && item.description_en ? item.description_en : item.description}</Text> : null}
         {item.ease_of_use != null ? (
-          <Text style={styles.instrumentMeta}>_Facilité d'utilisation : {item.ease_of_use}/5</Text>
+          <Text style={styles.instrumentMeta}>{t("cat.ease")} {item.ease_of_use}/5</Text>
         ) : null}
 
         <View style={styles.badges}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {(item.borrowable || (item.access_type ?? "").toLowerCase() === "empruntable") && (
-              <Text style={styles.badge}>Empruntable</Text>
+              <Text style={styles.badge}>{t("msg.lendable")}</Text>
             )}
-            <Text style={styles.badge}>Sur place</Text>
+            <Text style={styles.badge}>{t("msg.onsite")}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -380,9 +369,6 @@ export default function CatalogScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <BackButton />
-        <Text style={styles.title}>_Catalogue</Text>
-
         <View style={styles.tabs}>
           {TABS.map((t) => (
             <TouchableOpacity
@@ -403,71 +389,6 @@ export default function CatalogScreen() {
         </View>
       </View>
 
-      {tab !== "premium" && (
-        <View style={styles.filterModule}>
-          <Text style={styles.filterLabel}>_Filtrer les instruments</Text>
-
-          <TouchableOpacity
-            style={[styles.typeButton, typeFilter !== "all" && styles.typeButtonActive]}
-            onPress={() => setTypeOpen(true)}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[styles.typeButtonText, typeFilter !== "all" && styles.typeButtonTextActive]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              {typeFilter === "all" ? "Tous les types" : typeFilter}
-            </Text>
-            <Text style={[styles.typeArrow, typeFilter !== "all" && styles.typeButtonTextActive]}>
-              ▾
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <Modal
-        transparent
-        visible={typeOpen}
-        animationType="fade"
-        onRequestClose={() => setTypeOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setTypeOpen(false)}
-        >
-          <View style={styles.modalBox}>
-            <TouchableOpacity
-              style={styles.option}
-              onPress={() => {
-                setTypeFilter("all");
-                setTypeOpen(false);
-              }}
-            >
-              <Text style={[styles.optionText, typeFilter === "all" && styles.optionTextActive]}>
-                Tous les types
-              </Text>
-            </TouchableOpacity>
-
-            {TYPES.map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={styles.option}
-                onPress={() => {
-                  setTypeFilter(t);
-                  setTypeOpen(false);
-                }}
-              >
-                <Text style={[styles.optionText, typeFilter === t && styles.optionTextActive]}>
-                  {t}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       <GHScrollView
         ref={verticalScrollRef}
         contentContainerStyle={styles.scroll}
@@ -483,10 +404,9 @@ export default function CatalogScreen() {
                     renderCard={renderStationCardContent}
                     verticalScrollRef={verticalScrollRef}
                   />
-                  <ScrollIndicator scrollRef={null as any} />
                 </View>
               ) : (
-                <Text style={styles.empty}>Aucun poste premium disponible.</Text>
+                <Text style={styles.empty}>{t("msg.no_premium_station")}</Text>
               )}
             </View>
 
@@ -498,26 +418,24 @@ export default function CatalogScreen() {
                     onPress={() => setShowComing(true)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.comingButtonText}>À VENIR</Text>
+                    <Text style={styles.comingButtonText}>{t("msg.coming_soon_up")}</Text>
                   </TouchableOpacity>
                 )}
 
                 {showComing && (
                   <View style={styles.comingSection}>
-                    <Text style={styles.comingTitle}>_À venir</Text>
+                    <Text style={styles.comingTitle}>{t("ttl.coming_soon")}</Text>
                     <InfiniteCoverflow
                       items={comingStations}
                       renderCard={renderStationCardContent}
                       verticalScrollRef={verticalScrollRef}
                     />
-                    <ScrollIndicator scrollRef={null as any} />
-
                     <TouchableOpacity
                       style={styles.comingButton}
                       onPress={() => setShowComing(false)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.comingButtonText}>MASQUER</Text>
+                      <Text style={styles.comingButtonText}>{t("msg.hide")}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -529,21 +447,20 @@ export default function CatalogScreen() {
         {(tab === "libre_service" || tab === "empruntable") && (
           <>
             <View style={styles.section}>
-              {filteredCurrentInstruments.length > 0 ? (
+              {currentInstruments.length > 0 ? (
                 <View>
                   <InfiniteCoverflow
-                    items={filteredCurrentInstruments}
+                    items={currentInstruments}
                     renderCard={renderInstrumentCardContent}
                     verticalScrollRef={verticalScrollRef}
                   />
-                  <ScrollIndicator scrollRef={null as any} />
                 </View>
               ) : (
-                <Text style={styles.empty}>Aucun instrument dans cette catégorie.</Text>
+                <Text style={styles.empty}>{t("msg.no_instrument_category")}</Text>
               )}
             </View>
 
-            {filteredComingInstruments.length > 0 && (
+            {comingInstruments.length > 0 && (
               <>
                 {!showComing && (
                   <TouchableOpacity
@@ -551,26 +468,24 @@ export default function CatalogScreen() {
                     onPress={() => setShowComing(true)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.comingButtonText}>À VENIR</Text>
+                    <Text style={styles.comingButtonText}>{t("msg.coming_soon_up")}</Text>
                   </TouchableOpacity>
                 )}
 
                 {showComing && (
                   <View style={styles.comingSection}>
-                    <Text style={styles.comingTitle}>_À venir</Text>
+                    <Text style={styles.comingTitle}>{t("ttl.coming_soon")}</Text>
                     <InfiniteCoverflow
-                      items={filteredComingInstruments}
+                      items={comingInstruments}
                       renderCard={renderInstrumentCardContent}
                       verticalScrollRef={verticalScrollRef}
                     />
-                    <ScrollIndicator scrollRef={null as any} />
-
                     <TouchableOpacity
                       style={styles.comingButton}
                       onPress={() => setShowComing(false)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.comingButtonText}>MASQUER</Text>
+                      <Text style={styles.comingButtonText}>{t("msg.hide")}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -588,7 +503,7 @@ export default function CatalogScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
 
-  header: { backgroundColor: "#000", paddingTop: 4, paddingBottom: 14, zIndex: 10 },
+  header: { backgroundColor: "#000", paddingTop: 24, paddingBottom: 14, zIndex: 10 },
 
   title: {
     textAlign: "center",
@@ -726,17 +641,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#fff",
     borderRadius: 18,
-    padding: 18,
+    padding: 10,
     alignItems: "center",
     backgroundColor: "#000",
   },
 
   carouselPhotoBox: {
-    width: CARD_W - 36,
-    height: CARD_W - 70,
+    width: "100%",
+    height: CARD_W - 20,
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 4,
+    marginVertical: 6,
   },
 
   carouselPhoto: { width: "100%", height: "100%" },

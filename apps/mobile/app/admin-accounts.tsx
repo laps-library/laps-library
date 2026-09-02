@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Button, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -5,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import BackButton from "../components/BackButton";
 
 export default function AdminAccountsScreen() {
+  const { t } = useLang();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
 
@@ -36,8 +38,8 @@ export default function AdminAccountsScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Comptes</Text>
-        {accounts.length === 0 && <Text style={styles.empty}>Aucun compte.</Text>}
+        <Text style={styles.title}>{t("ttl.accounts_2")}</Text>
+        {accounts.length === 0 && <Text style={styles.empty}>{t("msg.no_account")}</Text>}
         {accounts.map((a) => (
           <View key={a.id} style={styles.card}>
             <Text style={styles.name}>
@@ -65,13 +67,13 @@ export default function AdminAccountsScreen() {
             <View style={styles.row}>
               {a.role === "client" ? (
                 <Button
-                  title="Promouvoir admin"
+                  title={t("lbl.promote_admin")}
                   color="#ff2bd6"
                   onPress={() => setRole(a.id, "admin")}
                 />
               ) : (
                 <Button
-                  title="Rétrograder client"
+                  title={t("lbl.demote_customer")}
                   color="#f87171"
                   onPress={() => setRole(a.id, "client")}
                 />

@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -8,6 +9,7 @@ import AppButton from "../components/AppButton";
 import BackButton from "../components/BackButton";
 
 export default function AdminMediaScreen() {
+  const { t } = useLang();
   const [all, setAll] = useState<any[]>([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -88,10 +90,10 @@ export default function AdminMediaScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Photos & manuels</Text>
+        <Text style={styles.title}>{t("ttl.photos_manuals")}</Text>
         <TextInput
           style={styles.input}
-          placeholder="Rechercher..."
+          placeholder={t("plh.search")}
           placeholderTextColor="#8e8e93"
           value={q}
           onChangeText={setQ}
@@ -115,7 +117,7 @@ export default function AdminMediaScreen() {
                 onPress={() => pickPdf(item)}
               />
             </View>
-            {busy === item.id && <Text style={styles.meta}>Envoi en cours...</Text>}
+            {busy === item.id && <Text style={styles.meta}>{t("msg.sending")}</Text>}
           </View>
         ))}
       </ScrollView>

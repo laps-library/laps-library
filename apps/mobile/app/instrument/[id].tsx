@@ -1,3 +1,4 @@
+import { useLang } from "../../lib/i18n";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams } from "expo-router";
@@ -28,6 +29,7 @@ const H = Dimensions.get("window").height;
 const W = Dimensions.get("window").width;
 
 export default function InstrumentDetailScreen() {
+  const { t, lang } = useLang();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [item, setItem] = useState<any>(null);
@@ -204,23 +206,23 @@ export default function InstrumentDetailScreen() {
 
         <Text style={styles.meta}>
           {item.category}
-          {item.synthesis_type ? ` · ${item.synthesis_type}` : ""}
+          {item.synthesis_type ? ` · ${lang === "en" && item.synthesis_type_en ? item.synthesis_type_en : item.synthesis_type}` : ""}
         </Text>
 
         <Text style={styles.meta}>Facilité {item.ease_of_use ?? "-"}/5</Text>
 
-        {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
+        {item.description ? <Text style={styles.desc}>{lang === "en" && item.description_en ? item.description_en : item.description}</Text> : null}
 
         <View style={styles.badges}>
           <Text style={styles.badge}>{item.acquired ? "Acquis" : "À venir"}</Text>
 
-          <Text style={styles.badge}>{item.borrowable ? "Empruntable" : "Sur place"}</Text>
+          <Text style={styles.badge}>{item.borrowable ? t("msg.lendable") : t("msg.onsite")}</Text>
 
           {item.units > 1 ? <Text style={styles.badge}>×{item.units} unités</Text> : null}
         </View>
 
         {item.package && item.package.length > 0 && (
-          <Text style={styles.label}>_Inclus dans le poste</Text>
+          <Text style={styles.label}>{t("ttl.included_station")}</Text>
         )}
 
         {(item.package ?? []).map((pkg: string, idx: number) => (
@@ -231,7 +233,7 @@ export default function InstrumentDetailScreen() {
 
         {item.manual_url && (
           <AppButton
-            label="Manuel d'utilisation"
+            label={t("lbl.user_manual")}
             onPress={() => Linking.openURL(item.manual_url)}
           />
         )}
@@ -247,7 +249,7 @@ export default function InstrumentDetailScreen() {
             />
           ))}
 
-        {item.videos && item.videos.length > 0 && <Text style={styles.label}>_Tutoriels</Text>}
+        {item.videos && item.videos.length > 0 && <Text style={styles.label}>{t("ttl.tutorials")}</Text>}
 
         {(item.videos ?? []).map((v: any, idx: number) => {
           // Mapping des chaînes YouTube connues
@@ -325,13 +327,13 @@ export default function InstrumentDetailScreen() {
         {/* === SECTION EMPRUNT / RÉSERVATION UNIFIÉE === */}
         {item.borrowable && item.acquired && (
           <View style={styles.actionCard}>
-            <Text style={styles.actionTitle}>_Emprunt</Text>
+            <Text style={styles.actionTitle}>{t("ttl.loan")}</Text>
 
             {plan?.can_borrow ? (
               <>
                 {/* Tarifs selon le plan */}
                 <View style={styles.actionInfo}>
-                  <Text style={styles.actionInfoLabel}>Tarif d'emprunt</Text>
+                  <Text style={styles.actionInfoLabel}>{t("msg.loan_rate")}</Text>
                   <Text style={styles.actionInfoValue}>
                     {/nerd/i.test(plan.name || "")
                       ? "10 € / 1 semaine · 15 € / 2 semaines"
@@ -342,7 +344,7 @@ export default function InstrumentDetailScreen() {
                 {/* Pièce d'identité requise */}
                 {profile?.id_document_status !== "verified" && (
                   <View style={styles.actionInfo}>
-                    <Text style={styles.actionInfoLabel}>Pièce d'identité</Text>
+                    <Text style={styles.actionInfoLabel}>{t("msg.id_document")}</Text>
                     <Text style={styles.actionInfoValue}>
                       {profile?.id_document_status === "pending"
                         ? "En cours de vérification"
@@ -365,7 +367,7 @@ export default function InstrumentDetailScreen() {
                 {/* Bouton d'emprunt (visible seulement si pièce vérifiée) */}
                 {profile?.id_document_status === "verified" ? (
                   <TouchableOpacity onPress={requestLoan} style={styles.actionButton}>
-                    <Text style={styles.actionButtonText}>Demander l'emprunt</Text>
+                    <Text style={styles.actionButtonText}>{t("msg.request_loan")}</Text>
                   </TouchableOpacity>
                 ) : (
                   <Text style={styles.note}>
@@ -376,7 +378,7 @@ export default function InstrumentDetailScreen() {
                 )}
               </>
             ) : (
-              <Text style={styles.note}>Ta formule ne permet pas l'emprunt d'instrument.</Text>
+              <Text style={styles.note}>{t("msg.plan_no_loan")}</Text>
             )}
           </View>
         )}
@@ -384,23 +386,23 @@ export default function InstrumentDetailScreen() {
         {/* === SECTION RÉSERVATION POUR INSTRUMENTS PREMIUM (SUR PLACE) === */}
         {item.access_type === "premium" && item.acquired && (
           <View style={styles.actionCard}>
-            <Text style={styles.actionTitle}>_Réservation</Text>
+            <Text style={styles.actionTitle}>{t("ttl.booking")}</Text>
 
             <View style={styles.actionInfo}>
-              <Text style={styles.actionInfoLabel}>Instrument</Text>
-              <Text style={styles.actionInfoValue}>À utiliser sur place</Text>
+              <Text style={styles.actionInfoLabel}>{t("msg.instrument")}</Text>
+              <Text style={styles.actionInfoValue}>{t("msg.use_onsite")}</Text>
             </View>
 
             <View style={styles.actionInfo}>
-              <Text style={styles.actionInfoLabel}>Durée d'un créneau</Text>
-              <Text style={styles.actionInfoValue}>3 heures</Text>
+              <Text style={styles.actionInfoLabel}>{t("msg.slot_duration")}</Text>
+              <Text style={styles.actionInfoValue}>{t("msg.3_hours")}</Text>
             </View>
 
             <TouchableOpacity
               onPress={() => router.push({ pathname: "/reserve", params: { instrument_id: id } })}
               style={styles.actionButton}
             >
-              <Text style={styles.actionButtonText}>Réserver un créneau</Text>
+              <Text style={styles.actionButtonText}>{t("msg.book_slot")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -409,7 +411,7 @@ export default function InstrumentDetailScreen() {
         {!item.borrowable &&
           item.acquired &&
           (!item.name || !(item.name || "").startsWith("Poste Premium")) && (
-            <Text style={styles.note}>Instrument à utiliser sur place.</Text>
+            <Text style={styles.note}>{t("msg.instrument_onsite")}</Text>
           )}
 
         {msg ? <Text style={styles.msg}>{msg}</Text> : null}

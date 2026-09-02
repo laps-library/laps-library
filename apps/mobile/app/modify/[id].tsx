@@ -1,3 +1,4 @@
+import { useLang } from "../../lib/i18n";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -15,6 +16,7 @@ import AppButton from "../../components/AppButton";
 import BackButton from "../../components/BackButton";
 
 export default function ModifyLoanScreen() {
+  const { t } = useLang();
   const { id } = useLocalSearchParams();
   const [loan, setLoan] = useState<any>(null);
   const [allModels, setAllModels] = useState<any[]>([]);
@@ -109,21 +111,21 @@ export default function ModifyLoanScreen() {
 
   if (!loan) return null;
 
-  const instrName = loan.physical_units?.instrument_models?.name || "Instrument";
+  const instrName = loan.physical_units?.instrument_models?.name || t("msg.instrument");
 
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Modifier l'emprunt</Text>
+        <Text style={styles.title}>{t("ttl.edit_loan")}</Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Instrument</Text>
+          <Text style={styles.label}>{t("msg.instrument")}</Text>
           <Text style={styles.value}>{instrName}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Changer d'instrument</Text>
+          <Text style={styles.label}>{t("msg.change_instrument")}</Text>
           {allModels.map((m) => (
             <TouchableOpacity
               key={m.id}
@@ -151,7 +153,7 @@ export default function ModifyLoanScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Semaine de début</Text>
+          <Text style={styles.label}>{t("msg.start_week")}</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {availableWeeks.map((week) => {
               const date = new Date(week);
@@ -189,7 +191,7 @@ export default function ModifyLoanScreen() {
 
         {msg && <Text style={styles.msg}>{msg}</Text>}
 
-        <AppButton label="Enregistrer les modifications" onPress={saveChanges} />
+        <AppButton label={t("lbl.save_changes")} onPress={saveChanges} />
       </ScrollView>
       <StatusBar style="light" />
     </SafeAreaView>

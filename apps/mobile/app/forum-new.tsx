@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useState } from "react";
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -7,6 +8,7 @@ import AppButton from "../components/AppButton";
 import BackButton from "../components/BackButton";
 
 export default function ForumNewScreen() {
+  const { t } = useLang();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
@@ -38,30 +40,30 @@ export default function ForumNewScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Nouveau sujet</Text>
+        <Text style={styles.title}>{t("ttl.new_topic")}</Text>
 
-        <Text style={styles.label}>_Titre</Text>
+        <Text style={styles.label}>{t("ttl.title")}</Text>
         <TextInput
           style={styles.input}
           value={title}
           onChangeText={setTitle}
-          placeholder="Titre du sujet"
+          placeholder={t("plh.topic_title")}
           placeholderTextColor="#8e8e93"
         />
 
-        <Text style={styles.label}>_Message</Text>
+        <Text style={styles.label}>{t("ttl.message")}</Text>
         <TextInput
           style={[styles.input, styles.body]}
           value={body}
           onChangeText={setBody}
-          placeholder="Ton message..."
+          placeholder={t("plh.your_message")}
           placeholderTextColor="#8e8e93"
           multiline
           numberOfLines={6}
           textAlignVertical="top"
         />
 
-        <AppButton label="Publier" onPress={publish} />
+        <AppButton label={t("lbl.publish")} onPress={publish} />
       </ScrollView>
       <StatusBar style="light" />
     </SafeAreaView>

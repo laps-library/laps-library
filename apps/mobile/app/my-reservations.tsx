@@ -1,3 +1,4 @@
+import { useLang } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -20,6 +21,7 @@ type Res = {
 const H16 = 16 * 3600 * 1000;
 
 export default function MyReservations() {
+  const { t } = useLang();
   const [list, setList] = useState<Res[]>([]);
 
   useEffect(() => {
@@ -50,8 +52,8 @@ export default function MyReservations() {
     <SafeAreaView style={styles.container}>
       <BackButton />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>_Mes réservations</Text>
-        {list.length === 0 && <Text style={styles.empty}>Aucune réservation.</Text>}
+        <Text style={styles.title}>{t("ttl.my_bookings")}</Text>
+        {list.length === 0 && <Text style={styles.empty}>{t("msg.no_booking")}</Text>}
         {list.map((r) => (
           <View key={r.id} style={styles.card}>
             <Text style={styles.name}>
@@ -71,7 +73,7 @@ export default function MyReservations() {
               {r.price_cents / 100}€ — {r.status}
             </Text>
             {canModify(r) && (
-              <AppButton label="Modifier" onPress={() => router.push(`/modify/${r.id}`)} />
+              <AppButton label={t("lbl.edit")} onPress={() => router.push(`/modify/${r.id}`)} />
             )}
           </View>
         ))}
